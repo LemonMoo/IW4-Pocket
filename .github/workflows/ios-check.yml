@@ -1,0 +1,25 @@
+name: ios-feasibility
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios-port]
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg: [bootstrap, launcher]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal && rustup target add aarch64-apple-ios
+      - name: cargo build ${{ matrix.pkg }} for iOS
+        env:
+          IW4L_BUILD_NUMBER: "1"
+        run: cargo build --profile play --target aarch64-apple-ios -p ${{ matrix.pkg }} --lib 2>&1 | tee build-${{ matrix.pkg }}.log
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ matrix.pkg }}
+          path: build-${{ matrix.pkg }}.log
