@@ -7,6 +7,7 @@ description = "World, DPVS, MapEnts, collision, dynent, glass, compass, and crea
 
 [dependencies]
 asset_core.workspace = true
+diag.workspace = true
 asset_transport.workspace = true
 asset_material.workspace = true
 asset_model.workspace = true

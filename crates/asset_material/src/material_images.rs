@@ -1028,6 +1028,7 @@ fn wrap_payload(payload: &PreparedPayload, wrap: WrapRecipe) -> Arc<Image> {
                 .expect("prepared image owns its payload")
                 .clone();
             WRAPPED_BYTES.fetch_add(data.len() as u64, Ordering::Relaxed);
+            diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, data.len() as u64);
             let image = Arc::new(wrap_mips(&state.mips, data, wrap));
             image
         }
@@ -3522,6 +3523,7 @@ fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>,
         out.extend_from_slice(&rgba);
     }
     diag::IOS_TEXTURE_BYTES.fetch_add(out.len() as u64, std::sync::atomic::Ordering::Relaxed);
+    diag::memtrack::add(diag::memtrack::Cat::ImageCpu, out.len() as u64);
     (MipStorage::Rgba8, out, width, height, (total - skip) as u32)
 }
 

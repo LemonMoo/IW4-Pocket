@@ -84,6 +84,36 @@ struct TaskVmInfo {
     phys_footprint: u64,
 }
 
+/// Mirror of Darwin's `malloc_statistics_t`.
+#[cfg(target_os = "ios")]
+#[repr(C)]
+#[derive(Default)]
+struct MallocStats {
+    blocks_in_use: libc::c_uint,
+    size_in_use: libc::size_t,
+    max_size_in_use: libc::size_t,
+    size_allocated: libc::size_t,
+}
+
+#[cfg(target_os = "ios")]
+unsafe extern "C" {
+    fn malloc_zone_statistics(zone: *mut libc::c_void, stats: *mut MallocStats);
+}
+
+/// (bytes in malloc blocks in use, bytes malloc reserved) across all zones, in MB.
+/// `footprint` minus the first number is memory that lives outside the heap
+/// (GPU-backed buffers, mapped files) or fragmentation.
+#[cfg(target_os = "ios")]
+fn heap_mb() -> (u64, u64) {
+    let mut stats = MallocStats::default();
+    // SAFETY: a null zone asks for the totals over all zones; the struct matches the ABI.
+    unsafe { malloc_zone_statistics(std::ptr::null_mut(), &raw mut stats) };
+    (
+        stats.size_in_use as u64 / (1024 * 1024),
+        stats.size_allocated as u64 / (1024 * 1024),
+    )
+}
+
 #[cfg(target_os = "ios")]
 fn footprint_mb() -> u64 {
     const TASK_VM_INFO: libc::c_int = 22;
@@ -119,8 +149,11 @@ fn spawn_memory_logger() {
                 let available_mb = unsafe { os_proc_available_memory() } / (1024 * 1024);
                 let tex_mb =
                     diag::IOS_TEXTURE_BYTES.load(std::sync::atomic::Ordering::Relaxed) / (1024 * 1024);
+                let (heap_used, heap_reserved) = heap_mb();
+                let outside = footprint.saturating_sub(heap_reserved);
                 diag::boot_crumb(&format!(
-                    "mem: footprint {footprint} MB, iOS still allows {available_mb} MB, textures sent {tex_mb} MB"
+                    "mem: footprint {footprint} MB | iOS still allows {available_mb} MB | heap in use {heap_used} MB, reserved {heap_reserved} MB, outside heap ~{outside} MB | textures sent {tex_mb} MB | {}",
+                    diag::memtrack::snapshot_line()
                 ));
                 last_mb = footprint;
                 last_log = std::time::Instant::now();

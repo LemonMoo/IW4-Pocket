@@ -1,6 +1,7 @@
 mod alloc_count;
 pub mod exit;
 pub mod gap;
+pub mod memtrack;
 pub mod wgsl_dump;
 
 pub use alloc_count::{
@@ -339,6 +340,11 @@ pub fn write_event(
     ev: Option<&str>,
     fields: Option<&serde_json::Value>,
 ) {
+    #[cfg(target_os = "ios")]
+    if lvl <= Level::Info {
+        let short: String = msg.chars().take(300).collect();
+        boot_crumb(&format!("[{}/{}] {short}", ch.as_str(), lvl.as_str()));
+    }
     let Some(sink) = SINK.get() else {
         eprintln!("{}  {}  {msg}", ch.as_str(), lvl.as_str());
         return;

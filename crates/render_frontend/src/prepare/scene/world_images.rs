@@ -477,6 +477,8 @@ impl WorldImageUpload {
                 // and lets its own copy go: the two are the same texels under
                 // the same sampler, and a second `add` is a second texture.
                 let Some(variant) = variant else {
+                    diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
+                    diag::memtrack::add(diag::memtrack::Cat::ImageToGpu, bytes);
                     return images.add((*image).clone());
                 };
                 if let Some(handle) = self.exact_by_variant.get(&variant) {
@@ -502,6 +504,8 @@ impl WorldImageUpload {
                     self.exact_by_variant.insert(variant, handle.clone());
                     return handle;
                 }
+                diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
+                diag::memtrack::add(diag::memtrack::Cat::ImageToGpu, bytes);
                 let handle = images.add((*image).clone());
                 if common_owned && self.common_profile_id != 0 {
                     common.by_variant.insert(variant, handle.clone());
@@ -528,6 +532,7 @@ impl WorldImageUpload {
                 if let Some(mode) = probe_debug_mode() {
                     paint_probe_debug(&mut image, mode);
                 }
+                diag::memtrack::add(diag::memtrack::Cat::ImageToGpu, bytes);
                 images.add(image)
             });
             self.note_step(step.elapsed(), bytes);
@@ -554,6 +559,13 @@ impl WorldImageUpload {
                     lightmap.sun_mask_source_name,
                     lightmap.sun_mask_size.x,
                     lightmap.sun_mask_size.y
+                );
+                diag::memtrack::add(diag::memtrack::Cat::Lightmap, bytes);
+                diag::memtrack::add(
+                    diag::memtrack::Cat::Other,
+                    image_bytes(&lightmap.ambient_image)
+                        + image_bytes(&lightmap.directional_image)
+                        + image_bytes(&lightmap.sun_mask_image),
                 );
                 RuntimeLightmapHandles {
                     primary: lightmap.primary_image.map(|image| images.add(image)),

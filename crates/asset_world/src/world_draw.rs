@@ -1066,6 +1066,11 @@ fn make_mesh(
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, texture_uvs);
     mesh.insert_attribute(Mesh::ATTRIBUTE_UV_1, lightmap_uvs);
     mesh.insert_indices(Indices::U32(indices));
+    // Approximation: 12 (pos) + 12 (normal) + 16 (tangent) + 16 (colour) + 8 + 8 (uvs) bytes per vertex, 4 per index.
+    diag::memtrack::add(
+        diag::memtrack::Cat::MeshCpu,
+        mesh.count_vertices() as u64 * 72 + mesh.indices().map_or(0, |i| i.len() as u64) * 4,
+    );
     mesh
 }
 
@@ -1223,7 +1228,7 @@ fn decode_lightmap_images(
         TextureDimension::D2,
         secondary_rgba,
         TextureFormat::Rgba8Unorm,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        lightmap_asset_usage(),
     );
     secondary_image.sampler = ImageSampler::linear();
     let mut ambient_image = Image::new(
@@ -1235,7 +1240,7 @@ fn decode_lightmap_images(
         TextureDimension::D2,
         ambient_rgba,
         TextureFormat::Rgba8Unorm,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        lightmap_asset_usage(),
     );
     ambient_image.sampler = ImageSampler::linear();
     let mut directional_image = Image::new(
@@ -1247,7 +1252,7 @@ fn decode_lightmap_images(
         TextureDimension::D2,
         directional_rgba,
         TextureFormat::Rgba8Unorm,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        lightmap_asset_usage(),
     );
     directional_image.sampler = ImageSampler::linear();
     let ambient_source_name = image
@@ -1289,7 +1294,7 @@ fn decode_lightmap_images(
         TextureDimension::D2,
         mask_source.to_vec(),
         TextureFormat::R8Unorm,
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        lightmap_asset_usage(),
     );
     primary_image.sampler = ImageSampler::linear();
     let sun_mask_image = primary_image.clone();
@@ -2000,4 +2005,16 @@ fn extract_dpvs(s: &ZoneStream<'_>, g: GfxWorldGeometry) -> Result<DpvsWorldData
     }
 
     out.checked()
+}
+
+
+/// Lightmap pages are uploaded once and never read back on the CPU. On iOS the GPU shares
+/// the app's memory budget, so keeping a second copy in the main world (and a page is six
+/// images, two of them clones of the others) costs real headroom. Desktop keeps both.
+fn lightmap_asset_usage() -> RenderAssetUsages {
+    if cfg!(target_os = "ios") {
+        RenderAssetUsages::RENDER_WORLD
+    } else {
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD
+    }
 }
