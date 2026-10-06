@@ -13,7 +13,7 @@
 
 <p align="center"><a href="https://ko-fi.com/marukoshi"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white" alt="Ko-fi"></a></p>
 
-<p align="center">🌍 [English](README.md) · [Italiano](README.it.md) · [Español](README.es.md) · **Français** · [Deutsch](README.de.md)</p>
+<p align="center">🌍 <a href="README.md">English</a> · <a href="README.it.md">Italiano</a> · <a href="README.es.md">Español</a> · <b>Français</b> · <a href="README.de.md">Deutsch</a></p>
 
 ## 📊 État
 
@@ -55,4 +55,4 @@ Port d'[IW4L](https://github.com/vladtrc/iw4L) par vladtrc et contributeurs (Apa
 
 ---
 
-<p align="center">☕ Ça vous plaît ? Soutenez le projet sur [Ko-fi](https://ko-fi.com/marukoshi)</p>
+<p align="center">☕ Ça vous plaît ? Soutenez le projet sur <a href="https://ko-fi.com/marukoshi">Ko-fi</a></p>
