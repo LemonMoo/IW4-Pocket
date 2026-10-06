@@ -6,6 +6,58 @@ use std::{
 
 use serde::Serialize;
 
+/// Allocation size classes, cheap enough to leave on: <64 KB, 64 KB-1 MB, 1-16 MB, >=16 MB.
+/// A big heap made of a few huge buffers and one made of millions of small objects need
+/// different fixes; this tells them apart.
+static CLASS_COUNT: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+static CLASS_BYTES: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+/// Number of allocations of 16 MB or more, and the largest single one seen.
+static HUGE_COUNT: AtomicU64 = AtomicU64::new(0);
+static LARGEST: AtomicU64 = AtomicU64::new(0);
+/// Set to the size of the latest allocation >= 16 MB so a logger thread can report it.
+static LAST_HUGE: AtomicU64 = AtomicU64::new(0);
+
+#[inline]
+fn size_class(size: u64) -> usize {
+    match size {
+        0..65_536 => 0,
+        65_536..1_048_576 => 1,
+        1_048_576..16_777_216 => 2,
+        _ => 3,
+    }
+}
+
+#[inline]
+fn record_size(size: u64) {
+    let c = size_class(size);
+    CLASS_COUNT[c].fetch_add(1, Ordering::Relaxed);
+    CLASS_BYTES[c].fetch_add(size, Ordering::Relaxed);
+    if c == 3 {
+        HUGE_COUNT.fetch_add(1, Ordering::Relaxed);
+        LARGEST.fetch_max(size, Ordering::Relaxed);
+        LAST_HUGE.store(size, Ordering::Relaxed);
+    }
+}
+
+/// Allocation counts and total bytes ever requested per size class, plus the number of
+/// allocations of 16 MB or more and the largest single one. Totals, not live bytes.
+pub fn size_class_report() -> String {
+    let mb = |b: u64| b / (1024 * 1024);
+    let n = |i: usize| CLASS_COUNT[i].load(Ordering::Relaxed);
+    let b = |i: usize| mb(CLASS_BYTES[i].load(Ordering::Relaxed));
+    format!(
+        "allocs requested: <64KB {}x {}MB | 64KB-1MB {}x {}MB | 1-16MB {}x {}MB | >=16MB {}x {}MB (largest {}MB)",
+        n(0), b(0), n(1), b(1), n(2), b(2), n(3), b(3),
+        mb(LARGEST.load(Ordering::Relaxed))
+    )
+}
+
+/// Size of the newest allocation of 16 MB or more since the last call, if any.
+pub fn take_last_huge() -> Option<u64> {
+    let v = LAST_HUGE.swap(0, Ordering::Relaxed);
+    (v != 0).then_some(v)
+}
+
 const FALLBACK_SLOT: usize = 0;
 const MAX_THREADS: usize = 256;
 
@@ -121,11 +173,13 @@ pub struct ProcessCountingAllocator;
 
 unsafe impl GlobalAlloc for ProcessCountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        record_size(layout.size() as u64);
         record_alloc(layout.size() as u64);
         unsafe { BACKING.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        record_size(layout.size() as u64);
         record_alloc(layout.size() as u64);
         unsafe { BACKING.alloc_zeroed(layout) }
     }
@@ -136,6 +190,7 @@ unsafe impl GlobalAlloc for ProcessCountingAllocator {
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        record_size(new_size as u64);
         record_alloc(new_size as u64);
         record_dealloc(layout.size() as u64);
         unsafe { BACKING.realloc(ptr, layout, new_size) }

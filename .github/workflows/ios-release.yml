@@ -28,12 +28,12 @@ jobs:
           IPHONEOS_DEPLOYMENT_TARGET: "15.0"
         run: |
           set -o pipefail
-          cargo build --profile play --target aarch64-apple-ios -p launcher --bin iw4l 2>&1 | tee build.log
+          cargo build --profile ios --target aarch64-apple-ios -p launcher --bin iw4l 2>&1 | tee build.log
       - name: Package unsigned IPA
         run: |
           set -e
           rm -rf Payload && mkdir -p Payload/IW4L.app
-          cp target/aarch64-apple-ios/play/iw4l Payload/IW4L.app/iw4l
+          cp target/aarch64-apple-ios/ios/iw4l Payload/IW4L.app/iw4l
           cp ios/Info.plist Payload/IW4L.app/Info.plist
           cp ios/icons/AppIcon60x60* ios/icons/AppIcon76x76* ios/icons/AppIcon83.5x83.5* Payload/IW4L.app/
           file Payload/IW4L.app/iw4l

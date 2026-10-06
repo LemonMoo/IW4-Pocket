@@ -2,10 +2,11 @@ mod alloc_count;
 pub mod exit;
 pub mod gap;
 pub mod memtrack;
+pub mod ios_env;
 pub mod wgsl_dump;
 
 pub use alloc_count::{
-    ProcessAllocationStats, ProcessCountingAllocator, counting_enabled,
+    ProcessAllocationStats, ProcessCountingAllocator, counting_enabled, size_class_report, take_last_huge,
     process_allocation_saturated, process_allocation_slots_used, process_allocations,
     process_live_heap_bytes, release_freed_heap,
 };
@@ -341,7 +342,7 @@ pub fn write_event(
     fields: Option<&serde_json::Value>,
 ) {
     #[cfg(target_os = "ios")]
-    if lvl <= Level::Info {
+    if lvl <= Level::Info && !ios_env::is_log_noise(msg) {
         let short: String = msg.chars().take(300).collect();
         boot_crumb(&format!("[{}/{}] {short}", ch.as_str(), lvl.as_str()));
     }

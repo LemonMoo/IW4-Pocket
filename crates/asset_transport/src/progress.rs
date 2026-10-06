@@ -268,7 +268,14 @@ pub fn process_resident_bytes() -> Option<u64> {
         RSS_PEAK.fetch_max(bytes, Ordering::Relaxed);
         Some(bytes)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "ios")]
+    {
+        // iOS: the number the OS enforces (includes GPU-backed and compressed memory).
+        let bytes = diag::ios_env::footprint_bytes()?;
+        RSS_PEAK.fetch_max(bytes, Ordering::Relaxed);
+        Some(bytes)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "ios")))]
     {
         None
     }
@@ -310,7 +317,7 @@ impl MemSample {
     fn now() -> Self {
         Self {
             rss: process_resident_bytes(),
-            heap: diag::process_live_heap_bytes(),
+            heap: diag::process_live_heap_bytes().or_else(diag::ios_env::heap_in_use_bytes),
         }
     }
 

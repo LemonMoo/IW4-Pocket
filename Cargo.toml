@@ -237,3 +237,10 @@ strip = "symbols"
 inherits = "play"
 debug = 1
 strip = "none"
+
+# iOS builds keep symbol names so a crash backtrace in iw4l-boot.log is readable.
+# Same optimisation as `play`; only the binary gets larger.
+[profile.ios]
+inherits = "play"
+strip = "none"
+debug = 0

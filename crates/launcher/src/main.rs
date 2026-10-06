@@ -48,90 +48,6 @@ fn prepare_ios_sandbox() {
     }
 }
 
-/// iOS has no console and jetsam kills leave no panic. Sample memory 4x/s and log on
-/// every 40 MB change (or every 2 s): the last line before a silent exit shows the
-/// footprint and how many bytes iOS still allowed this process (os_proc_available_memory).
-#[cfg(target_os = "ios")]
-unsafe extern "C" {
-    fn os_proc_available_memory() -> usize;
-}
-
-/// task_vm_info up to `phys_footprint`, the number iOS actually enforces (it includes
-/// GPU-backed and compressed memory that `resident_size` misses).
-#[cfg(target_os = "ios")]
-#[repr(C)]
-#[derive(Default)]
-struct TaskVmInfo {
-    virtual_size: u64,
-    region_count: i32,
-    page_size: i32,
-    resident_size: u64,
-    resident_size_peak: u64,
-    device: u64,
-    device_peak: u64,
-    internal: u64,
-    internal_peak: u64,
-    external: u64,
-    external_peak: u64,
-    reusable: u64,
-    reusable_peak: u64,
-    purgeable_volatile_pmap: u64,
-    purgeable_volatile_resident: u64,
-    purgeable_volatile_virtual: u64,
-    compressed: u64,
-    compressed_peak: u64,
-    compressed_lifetime: u64,
-    phys_footprint: u64,
-}
-
-/// Mirror of Darwin's `malloc_statistics_t`.
-#[cfg(target_os = "ios")]
-#[repr(C)]
-#[derive(Default)]
-struct MallocStats {
-    blocks_in_use: libc::c_uint,
-    size_in_use: libc::size_t,
-    max_size_in_use: libc::size_t,
-    size_allocated: libc::size_t,
-}
-
-#[cfg(target_os = "ios")]
-unsafe extern "C" {
-    fn malloc_zone_statistics(zone: *mut libc::c_void, stats: *mut MallocStats);
-}
-
-/// (bytes in malloc blocks in use, bytes malloc reserved) across all zones, in MB.
-/// `footprint` minus the first number is memory that lives outside the heap
-/// (GPU-backed buffers, mapped files) or fragmentation.
-#[cfg(target_os = "ios")]
-fn heap_mb() -> (u64, u64) {
-    let mut stats = MallocStats::default();
-    // SAFETY: a null zone asks for the totals over all zones; the struct matches the ABI.
-    unsafe { malloc_zone_statistics(std::ptr::null_mut(), &raw mut stats) };
-    (
-        stats.size_in_use as u64 / (1024 * 1024),
-        stats.size_allocated as u64 / (1024 * 1024),
-    )
-}
-
-#[cfg(target_os = "ios")]
-fn footprint_mb() -> u64 {
-    const TASK_VM_INFO: libc::c_int = 22;
-    let mut info = TaskVmInfo::default();
-    let mut count = (size_of::<TaskVmInfo>() / size_of::<u32>()) as libc::mach_msg_type_number_t;
-    // SAFETY: the struct mirrors the kernel's task_vm_info prefix; count bounds the write.
-    #[allow(deprecated)]
-    let kr = unsafe {
-        libc::task_info(
-            libc::mach_task_self(),
-            TASK_VM_INFO as _,
-            (&raw mut info).cast(),
-            &raw mut count,
-        )
-    };
-    if kr == 0 { info.phys_footprint / (1024 * 1024) } else { 0 }
-}
-
 /// iOS has no console and jetsam kills leave no panic. Sample 4x/s and log on every 40 MB
 /// change (or every 2 s): footprint (what iOS enforces, GPU included), what iOS still
 /// allows, and the RGBA texture bytes sent to the GPU. The last line before a silent exit
@@ -141,16 +57,24 @@ fn spawn_memory_logger() {
     let _ = std::thread::Builder::new().name("mem-log".into()).spawn(|| {
         let mut last_mb = 0u64;
         let mut last_log = std::time::Instant::now();
+        let mut last_classes = std::time::Instant::now();
         loop {
-            let footprint = footprint_mb();
+            if let Some(huge) = diag::take_last_huge() {
+                diag::boot_crumb(&format!("big allocation: {} MB requested", huge / (1024 * 1024)));
+            }
+            if last_classes.elapsed() >= std::time::Duration::from_secs(5) {
+                diag::boot_crumb(&diag::size_class_report());
+                last_classes = std::time::Instant::now();
+            }
+            let footprint = diag::ios_env::footprint_bytes().unwrap_or(0) / (1024 * 1024);
             let changed = footprint.abs_diff(last_mb) >= 40;
             if changed || last_log.elapsed() >= std::time::Duration::from_secs(2) {
-                // SAFETY: no arguments, returns a byte count (iOS 13+).
-                let available_mb = unsafe { os_proc_available_memory() } / (1024 * 1024);
+                let available_mb = diag::ios_env::available_bytes().unwrap_or(0) / (1024 * 1024);
+                let (heap_used, heap_reserved) = diag::ios_env::heap_bytes().unwrap_or((0, 0));
+                let (heap_used, heap_reserved) = (heap_used / (1024 * 1024), heap_reserved / (1024 * 1024));
+                let outside = footprint.saturating_sub(heap_reserved);
                 let tex_mb =
                     diag::IOS_TEXTURE_BYTES.load(std::sync::atomic::Ordering::Relaxed) / (1024 * 1024);
-                let (heap_used, heap_reserved) = heap_mb();
-                let outside = footprint.saturating_sub(heap_reserved);
                 diag::boot_crumb(&format!(
                     "mem: footprint {footprint} MB | iOS still allows {available_mb} MB | heap in use {heap_used} MB, reserved {heap_reserved} MB, outside heap ~{outside} MB | textures sent {tex_mb} MB | {}",
                     diag::memtrack::snapshot_line()
@@ -192,12 +116,13 @@ fn main() {
     #[cfg(target_os = "ios")]
     {
         prepare_ios_sandbox();
-        let _ = std::fs::remove_file(
-            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
-                .join("Documents")
-                .join("iw4l-boot.log"),
-        );
+        let docs = PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join("Documents");
+        diag::ios_env::rotate_log(&docs.join("iw4l-boot.log"));
         diag::boot_crumb("1 main entered, sandbox ready");
+        diag::boot_crumb(&diag::ios_env::device_report(env!("CARGO_PKG_VERSION")));
+        for line in diag::ios_env::apply_env_file(&docs.join("iw4l-env.txt")) {
+            diag::boot_crumb(&format!("iw4l-env.txt: {line}"));
+        }
         install_signal_logging();
         spawn_memory_logger();
         std::panic::set_hook(Box::new(|info| {

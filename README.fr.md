@@ -31,7 +31,7 @@ Aucune programmation nécessaire. Comptez environ 15 minutes plus la copie des f
 
 1. **Procurez-vous les fichiers du jeu.** Il faut votre propre copie de *Modern Warfare 2 (2009)* pour **PC** (version Steam). Le dossier doit contenir un sous-dossier nommé `zone`. Ce projet ne fournit ni ne lie aucun fichier du jeu
 2. **Installez SideStore** sur votre iPhone avec le [guide officiel](https://sidestore.io). C'est l'outil qui installe des apps comme celle-ci
-3. **Téléchargez l'app :** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/download/v0.1.9/IW4.Pocket.ipa) (ou ouvrez la [page de la release](https://github.com/MarkusSela/IW4-Pocket/releases/tag/v0.1.9))
+3. **Téléchargez l'app :** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/download/v0.2.0/IW4.Pocket.ipa) (ou ouvrez la [page de la release](https://github.com/MarkusSela/IW4-Pocket/releases/tag/v0.2.0))
 4. **Installez-la avec SideStore** (touchez **+**, choisissez le fichier). Si vous avez déjà une ancienne version, installez **par-dessus** : désinstaller supprime vos fichiers de jeu
 5. **Ouvrez l'app une fois**, puis fermez-la. Cela crée son dossier
 6. **Copiez votre dossier MW2** dans l'app Fichiers : *Sur mon iPhone > IW4 Pocket > Games*. Tout nom convient s'il contient `zone`
@@ -59,6 +59,7 @@ Vous avez essayé ? [Ouvrez une issue](https://github.com/MarkusSela/IW4-Pocket/
 - **Manette non détectée** : associez-la d'abord en Bluetooth, puis rouvrez l'app
 - **L'app se ferme sur une carte** : c'est le problème de mémoire connu. Envoyez le journal
 - **Pour limiter les textures** : ajoutez un fichier texte `iw4l-texture-cap.txt` contenant uniquement un nombre, par exemple `256`, puis redémarrez complètement l'app
+- **Avancé :** un fichier texte `iw4l-env.txt` avec des lignes `IW4L_NOM=valeur` règle les interrupteurs du moteur sans recompiler. Les noms doivent commencer par `IW4L_`
 
 ## 🛠️ Le compiler soi-même
 
