@@ -9,43 +9,60 @@
 
 <h1 align="center">IW4 Pocket</h1>
 
-<p align="center">Modern Warfare 2 (2009) on iPhone, running on the open-source IW4L engine. Unofficial and experimental.</p>
+<p align="center">Modern Warfare 2 (2009) on your iPhone, running on the open-source IW4L engine. Unofficial and experimental.</p>
 
 <p align="center"><a href="https://ko-fi.com/marukoshi"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white" alt="Ko-fi"></a></p>
 
 <p align="center">🌍 <b>English</b> · <a href="README.it.md">Italiano</a> · <a href="README.es.md">Español</a> · <a href="README.fr.md">Français</a> · <a href="README.de.md">Deutsch</a></p>
 
-## 📊 Status
+## 🎯 What is this?
 
-- ✅ Runs natively on iPhone (Rust + Bevy + Metal), packaged as an IPA for SideStore
-- ✅ Reaches the main menu: touch works as a click, a PS4 controller works
-- ⚠️ Loading a match map (tested: `mp_rust`) still crashes: iOS closes the app for using too much memory. Not solved yet
+A port of the open-source [IW4L](https://github.com/vladtrc/iw4L) engine to iOS. It **does not contain the game**: it reads the game files **you already own** on PC. Think of it as a new player for files you have.
 
-## 📱 Compatibility
+## 📊 Where it stands
 
-It should run on any iPhone or iPad with Metal, but it was **only tested on an iPhone 13 Pro Max (6 GB)**. Devices with less RAM will likely fail sooner.
+- ✅ Runs natively on iPhone (Rust + Bevy + Metal)
+- ✅ Reaches the main menu. Touch works as a click and a PS4 controller works
+- ⚠️ Loading a match map (tested: `mp_rust`) still crashes: iOS closes the app for using too much memory. Not solved yet. It is released so people can test it and help
 
-## 🧰 You need
+## 🙋 Try it, step by step
 
-- An iPhone or iPad (iOS 15+) and **SideStore** or another sideloading tool
-- **Your own copy of the Modern Warfare 2 (2009) PC game files**, the folder containing `zone/`. Nothing is included here
-- A controller (PS4 verified; Xbox-style pads depend on the model)
+No coding needed. It takes about 15 minutes plus the file copy.
 
-## 🚀 Install
+1. **Get the game files.** You need your own copy of *Modern Warfare 2 (2009)* for **PC** (the Steam version). The folder must contain a subfolder named `zone`. This project does not provide or link to game files
+2. **Install SideStore** on your iPhone by following the [official guide](https://sidestore.io). It is the tool that installs apps like this one
+3. **Download the app:** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/download/v0.1.8/IW4.Pocket.ipa) (or open the [release page](https://github.com/MarkusSela/IW4-Pocket/releases/tag/v0.1.8))
+4. **Install it with SideStore** (tap **+**, pick the file). If you already have an older version, install **over** it: uninstalling deletes your game files
+5. **Open the app once**, then close it. This creates its folder
+6. **Copy your MW2 folder** into the Files app: *On My iPhone > IW4 Pocket > Games*. Any folder name works, as long as it contains `zone`
+7. **Pair a controller** in Bluetooth settings (PS4/DualShock 4 is verified), then open the app. The first load is slow and the screen can stay pink for a while
 
-1. Get **IW4 Pocket.ipa** from the [latest release](../../releases/latest) (or the [`ipa`](ipa) folder)
-2. Install it with SideStore, **over** any older version: uninstalling deletes your game files
-3. Open the app once, then copy your MW2 folder to **Files > On My iPhone > IW4 Pocket > Games**
-4. Launch it. The first load is slow and the screen may stay pink for a while
+## 📱 Will it work on my device?
 
-## 📂 Logs and settings
+- ✅ **Tested:** iPhone 13 Pro Max (6 GB), iOS 27. Menus work, match maps crash
+- ❓ **Everything else is unverified.** Technically it should run on any iPhone or iPad with Metal; the app declares iOS 15 as its minimum, but I never tried it there
+- 🧠 **Memory is the limit.** On the tested phone iOS allows the app about 3 GB. Devices with less RAM will likely fail sooner; 8 GB+ iPhones and M-series iPads are the most interesting to test
+- 🎮 **A controller is needed to play.** Touch only works in the menus
 
-- `iw4l-boot.log` (same folder) records startup, memory use and crashes. Attach it to bug reports
-- To force the texture size limit, add a text file `iw4l-texture-cap.txt` containing only a number such as `256`, then fully restart the app
+## 🐞 Help me test
+
+Tried it? Please [open an issue](https://github.com/MarkusSela/IW4-Pocket/issues/new) with:
+
+- your device and iOS version
+- what happened (menu? map loaded? app closed?)
+- the file `iw4l-boot.log` from *On My iPhone > IW4 Pocket*. It records startup, memory use and crashes
+
+## 🔧 Something went wrong?
+
+- **"MW2 Multiplayer was not found"**: the folder must be inside `Games` and contain `zone`
+- **Pink screen for a long time**: wait, the first load is slow
+- **Controller not detected**: pair it in Bluetooth first, then reopen the app
+- **App closes on a map**: that is the known memory issue. Send the log
+- **To limit texture size**: add a text file `iw4l-texture-cap.txt` containing only a number such as `256`, then fully restart the app
 
 ## 🛠️ Build it yourself
 
-Run the **ios-release** workflow from the Actions tab (macOS runner) and give it a tag to publish a release.
+Run the **ios-release** workflow from the Actions tab (macOS runner) and give it a tag.
 
 ## ⚖️ Credits and legal
 
