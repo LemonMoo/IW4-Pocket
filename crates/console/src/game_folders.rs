@@ -91,13 +91,21 @@ impl FolderPicks {
         let spawned = std::thread::Builder::new()
             .name("game folder dialog".into())
             .spawn(move || {
-                let mut dialog =
-                    rfd::FileDialog::new().set_title(format!("Choose the {} folder", game.title()));
-                if let Some(start) = start.filter(|start| start.is_dir()) {
-                    dialog = dialog.set_directory(start);
+                #[cfg(not(target_os = "ios"))]
+                {
+                    let mut dialog = rfd::FileDialog::new()
+                        .set_title(format!("Choose the {} folder", game.title()));
+                    if let Some(start) = start.filter(|start| start.is_dir()) {
+                        dialog = dialog.set_directory(start);
+                    }
+                    if let Some(folder) = dialog.pick_folder() {
+                        let _ = sender.send((game, folder));
+                    }
                 }
-                if let Some(folder) = dialog.pick_folder() {
-                    let _ = sender.send((game, folder));
+                #[cfg(target_os = "ios")]
+                {
+                    // TODO(ios): native UIDocumentPicker; set the folder via IW4L_GAMES for now.
+                    let _ = (&sender, &start, game);
                 }
                 dialog_open.store(false, Ordering::Release);
             });

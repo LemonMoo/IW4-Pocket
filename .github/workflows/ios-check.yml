@@ -17,7 +17,9 @@ jobs:
       - name: cargo build ${{ matrix.pkg }} for iOS
         env:
           IW4L_BUILD_NUMBER: "1"
-        run: cargo build --profile play --target aarch64-apple-ios -p ${{ matrix.pkg }} --lib 2>&1 | tee build-${{ matrix.pkg }}.log
+        run: |
+          set -o pipefail
+          cargo build --profile play --target aarch64-apple-ios -p ${{ matrix.pkg }} --lib 2>&1 | tee build-${{ matrix.pkg }}.log
       - if: always()
         uses: actions/upload-artifact@v4
         with:
