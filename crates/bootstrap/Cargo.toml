@@ -48,5 +48,10 @@ serde_json.workspace = true
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
 
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSObject"] }
+objc2-game-controller = "0.3"
+
 [lints]
 workspace = true

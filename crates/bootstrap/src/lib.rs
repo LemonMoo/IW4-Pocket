@@ -1,6 +1,8 @@
 pub mod args;
 pub mod bench;
 mod frame_owner;
+#[cfg(target_os = "ios")]
+mod ios_input;
 mod launch;
 mod plugins;
 

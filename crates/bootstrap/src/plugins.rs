@@ -119,6 +119,8 @@ pub fn default_plugins_with_quiet_log(mut window: WindowPlugin) -> bevy::app::Pl
             render_creation: RenderCreation::Automatic(Box::new(wgpu)),
             ..default()
         });
+    #[cfg(target_os = "ios")]
+    let plugins = plugins.add(crate::ios_input::IosInputPlugin);
     if pipelined_rendering() {
         plugins
     } else {

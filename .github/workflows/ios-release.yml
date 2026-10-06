@@ -1,8 +1,14 @@
-name: ios-ipa
+name: ios-release
+# Manual only: nothing runs on push, so no build is wasted.
 on:
   workflow_dispatch:
-  push:
-    branches: [ios-port]
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.1.0-alpha). Empty = build only, upload as artifact."
+        required: false
+        default: ""
+permissions:
+  contents: write
 jobs:
   ipa:
     runs-on: macos-15
@@ -39,3 +45,12 @@ jobs:
           path: |
             IW4L-unsigned.ipa
             build.log
+      - name: Publish release
+        if: ${{ inputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.tag }}" IW4L-unsigned.ipa \
+            --title "IW4L for iOS ${{ inputs.tag }}" \
+            --prerelease \
+            --notes-file RELEASE_NOTES.md
