@@ -144,6 +144,16 @@ pub fn search_roots(root: &Path) -> Vec<PathBuf> {
 
 pub(crate) fn configured_search_roots(root: &Path) -> Vec<PathBuf> {
     let mut roots = vec![root.to_path_buf()];
+    // iOS cannot create symlinks: accept any direct subfolder of the games root that
+    // holds a `zone` directory (e.g. Games/Modern Warfare 2/zone).
+    #[cfg(target_os = "ios")]
+    if let Ok(entries) = std::fs::read_dir(root) {
+        for path in entries.flatten().map(|entry| entry.path()) {
+            if path.join("zone").is_dir() && !roots.contains(&path) {
+                roots.push(path);
+            }
+        }
+    }
     for folder in GAME_FOLDERS
         .read()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
