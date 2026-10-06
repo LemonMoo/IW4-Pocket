@@ -22,7 +22,35 @@ const LICENSES: [(&str, &str); 5] = [
     ),
 ];
 
+/// iOS sandbox: everything lives in the app's Documents folder, which the Files app
+/// can reach (UIFileSharingEnabled). Game data goes in Documents/Games.
+#[cfg(target_os = "ios")]
+fn prepare_ios_sandbox() {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return;
+    };
+    let docs = home.join("Documents");
+    let games = docs.join("Games");
+    let artifacts = docs.join("iw4l-artifacts");
+    let config = home.join("Library").join("Application Support");
+    for dir in [&games, &artifacts, &config] {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    // SAFETY: called first thing in main, before any thread is spawned.
+    unsafe {
+        if std::env::var_os("IW4L_GAMES").is_none() {
+            std::env::set_var("IW4L_GAMES", &games);
+        }
+        if std::env::var_os("IW4L_ARTIFACTS_DIR").is_none() {
+            std::env::set_var("IW4L_ARTIFACTS_DIR", &artifacts);
+        }
+        std::env::set_var("XDG_CONFIG_HOME", &config);
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "ios")]
+    prepare_ios_sandbox();
     if std::env::args_os()
         .nth(1)
         .is_some_and(|arg| arg == "licenses")

@@ -1,0 +1,41 @@
+name: ios-ipa
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios-port]
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal && rustup target add aarch64-apple-ios
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: ios-ipa-${{ hashFiles('Cargo.lock') }}
+      - name: Build iw4l for iOS
+        env:
+          IW4L_BUILD_NUMBER: "1"
+          IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        run: |
+          set -o pipefail
+          cargo build --profile play --target aarch64-apple-ios -p launcher --bin iw4l 2>&1 | tee build.log
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          rm -rf Payload && mkdir -p Payload/IW4L.app
+          cp target/aarch64-apple-ios/play/iw4l Payload/IW4L.app/iw4l
+          cp ios/Info.plist Payload/IW4L.app/Info.plist
+          file Payload/IW4L.app/iw4l
+          zip -qr IW4L-unsigned.ipa Payload
+          ls -lh IW4L-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: IW4L-ipa
+          path: |
+            IW4L-unsigned.ipa
+            build.log
