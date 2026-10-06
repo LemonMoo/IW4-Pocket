@@ -1,9 +1,24 @@
-Experimental, unofficial iOS build of [IW4L](https://github.com/vladtrc/iw4L).
+# IW4 Pocket 0.1.8 (experimental)
 
-**Install:** sideload `IW4L-unsigned.ipa` with SideStore (it signs with your own Apple ID). Install over an older version to keep your game files.
+Unofficial iOS port of [IW4L](https://github.com/vladtrc/iw4L), the open-source Rust runtime for Modern Warfare 2 (2009).
 
-**Game data is NOT included.** Copy your own legitimately obtained PC copy of Modern Warfare 2 (multiplayer data, the folder that contains `zone/`) into the Files app: `On My iPhone > IW4L > Games > <any folder name>`.
+**Tested only on an iPhone 13 Pro Max (6 GB).** It should technically run on other iPhones/iPads with Metal, but that is unverified.
 
-**Status:** menus load. Controller (via Apple GameController) and touch-to-click are new in this build and untested. Gameplay is unverified; memory use in-game is unknown. Expect crashes. A boot log is written to `Documents/iw4l-boot.log`.
+## Works
+- Starts, loads the game data and reaches the main menu.
+- Touch acts as a mouse click in the menus.
+- PS4 (DualShock 4) controller via Apple GameController.
 
-Not affiliated with Activision, Infinity Ward or the IW4L authors.
+## Known issue
+- Loading a match map (tested: `mp_rust`) still crashes: iOS terminates the app for using too much memory. Not solved yet.
+
+## Install
+1. Install `IW4 Pocket.ipa` with SideStore. Install over an older version to keep your game files.
+2. Open the app once, then copy **your own** MW2 (2009) PC game folder (the one with `zone/`) to Files > On My iPhone > IW4 Pocket > Games.
+3. Launch. The first load is slow.
+
+No game files are included. A boot log is written to `Documents/iw4l-boot.log`; attach it when reporting a problem.
+
+Support the project: https://ko-fi.com/marukoshi
+
+Not affiliated with Activision, Infinity Ward, Apple or the IW4L authors.

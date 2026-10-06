@@ -37,21 +37,21 @@ jobs:
           cp ios/Info.plist Payload/IW4L.app/Info.plist
           cp ios/icons/AppIcon60x60* ios/icons/AppIcon76x76* ios/icons/AppIcon83.5x83.5* Payload/IW4L.app/
           file Payload/IW4L.app/iw4l
-          zip -qr IW4L-unsigned.ipa Payload
-          ls -lh IW4L-unsigned.ipa
+          zip -qr "IW4 Pocket.ipa" Payload
+          ls -lh "IW4 Pocket.ipa"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: IW4L-ipa
           path: |
-            IW4L-unsigned.ipa
+            IW4 Pocket.ipa
             build.log
       - name: Publish release
         if: ${{ inputs.tag != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ inputs.tag }}" IW4L-unsigned.ipa \
-            --title "IW4L for iOS ${{ inputs.tag }}" \
+          gh release create "${{ inputs.tag }}" "IW4 Pocket.ipa" \
+            --title "IW4 Pocket ${{ inputs.tag }}" \
             --prerelease \
             --notes-file RELEASE_NOTES.md

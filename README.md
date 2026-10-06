@@ -1,94 +1,72 @@
-# IW4L
-
-IW4L is an open-source runtime for Call of Duty: Modern Warfare 2 (2009), written in
-Rust with [Bevy](https://bevy.org/). Point it at a copy of MW2 you already own and it
-loads that installation's maps, models, textures and weapons into its own engine. You
-can try implemented movement and combat on multiplayer maps, then inspect or change how
-those systems work.
-
 <p align="center">
-  <img src="docs/screenshots/bomb-plant.jpg" width="49%" alt="Bomb planting in IW4L">
-  <img src="docs/screenshots/tanker-explosion.jpg" width="49%" alt="Tanker explosion in IW4L">
+  <video src="https://github.com/MarkusSela/IW4-Pocket/raw/main/media/demo.mp4" controls muted loop playsinline width="100%"></video>
 </p>
 
-## What you can try
+<p align="center"><sub>Demo (18 s, iPhone 13 Pro Max) · <a href="https://github.com/MarkusSela/IW4-Pocket/raw/main/media/demo.mp4">If the video does not play, open it directly</a></sub></p>
 
-Explore maps, fight bots, and record and replay demos. Gameplay remains incomplete;
-expect missing behavior, bugs and desyncs. The asset readers also cover MW3 and Black
-Ops.
+<p align="center">
+  <img src="media/icon.png" width="128" alt="IW4 Pocket icon">
+</p>
 
-APIs, configuration, caches and the wire protocol change between commits;
-multiplayer peers must run the same build.
+<h1 align="center">IW4 Pocket</h1>
 
-## Windows: prebuilt release
+<p align="center">Modern Warfare 2 (2009) on iPhone, powered by the open-source IW4L runtime. Unofficial and experimental.</p>
 
-1. Download `iw4l-windows.zip` from [Releases](../../releases) and extract it into an
-   empty writable folder. The archive password is `t.me/contextrot`.
-2. Launch `iw4l.exe`. It finds MW2 in your Steam libraries and creates a
-   `Modern Warfare 2.lnk` shortcut next to itself. For an install outside Steam, create
-   that shortcut to your MW2 folder yourself.
+<p align="center"><a href="https://ko-fi.com/marukoshi"><img src="https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white" alt="Ko-fi"></a></p>
 
-For online play, put the `.iw4l-server` file you received from a server operator next
-to `iw4l.exe`. With it the game finds that master and updates itself on launch. Details:
-[Windows guide](docs/WINDOWS.md).
+<p align="center">**English** · [Italiano](README.it.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md)</p>
 
-## Build and run
+## Status
 
-Install Rust through rustup and GNU Make. [Build dependencies](docs/BUILD.md) cover
-Linux's C/C++ toolchain and system libraries, and macOS's Xcode command line tools.
-[Windows instructions](docs/WINDOWS.md) cover building and arranging a portable folder.
+- **Builds and runs on iPhone** (Rust + Bevy + wgpu on Metal), packaged as an IPA for SideStore.
+- **Reaches the main menu.** Touch works as a mouse click in the menus. A PS4 (DualShock 4) controller works through Apple's GameController framework.
+- **Known issue:** loading a match map (tested: `mp_rust`) still crashes. iOS terminates the app for using too much memory. This is work in progress and not solved yet.
+- Texture handling is adapted for Apple GPUs (no BC/DXT support, so textures are decoded to RGBA8 and capped in size).
 
-You need your own installed MW2 Multiplayer data. IW4L
-distributes no game assets and reads installations without patching or replacing their
-files. Caches, demos and logs go under `iw4l-artifacts/`; Linux settings use a separate
-configuration directory described in the [run guide](docs/RUN.md).
+## Compatibility
 
-From the repository root:
+Technically it should run on any iPhone or iPad with Metal and enough free memory, but it has **only been tested on an iPhone 13 Pro Max (6 GB, iOS 27)**. Other devices are unverified. Memory is the limiting factor: iOS lets this app use about 3 GB on that phone, and models with less RAM are likely to fail sooner.
 
-```bash
-cp .env.example .env
-# Edit .env: set IW4L_GAMES to the folder containing your game installations.
-make map mp_boneyard CMDS='wait world; spawn 0; force_match_start; bot add 3'
-```
+## What you need
 
-This builds the optimized `play` profile and starts a local match with three bots.
-`force_match_start` skips the warmup that otherwise freezes movement.
+- An iPhone or iPad with Metal (iOS 15 or later).
+- SideStore (or another sideloading tool) to install the IPA.
+- **Your own copy of the Modern Warfare 2 (2009) PC game data**, the folder that contains `zone/`. No game files are included here and none are provided.
+- A controller is strongly recommended. A PS4 controller is verified; Xbox-style pads depend on the model.
 
-## Inside the engine
+## Install
 
-| Area | Implementation |
-|---|---|
-| Assets | Native FastFile readers convert game data into a shared intermediate representation. |
-| Shaders | Retail Direct3D 9 Shader Model 3 bytecode is translated to WGSL. |
-| Rendering | World geometry, models and effects feed one sorted draw-surface list. |
-| Simulation | Server authority, client prediction and replay share one simulation step over explicit Bevy ECS state. |
-| Networking | Custom UDP traffic; a QUIC master provides browsing and relaying. The host simulates the match. |
+1. Download **IW4 Pocket.ipa** from the [latest release](../../releases/latest).
+2. Install it with SideStore. Install over an older version to keep your game files; uninstalling deletes them.
+3. Open the app once, then copy your MW2 PC folder to **Files > On My iPhone > IW4 Pocket > Games** (any subfolder name works, as long as it contains `zone/`).
+4. Launch the app. The first load is slow and the screen can stay pink for a while.
 
-## Where to go next
+## Files and logs
 
-- [Run guide](docs/RUN.md): console commands, classes and demo playback; [master setup](docs/MASTER.md) for playtests.
-- [Rendering](docs/RENDER.md) and [simulation](docs/SIM-STEP.md): inspect the engine's implementation.
-- [Map loading](docs/MAP-LOAD.md), [GSC runtime](docs/GSC-RUNTIME.md) and [bot AI](docs/BOTS.md): starting points for experiments and modifications.
-- [Documentation index](docs/INDEX.md), [contributing](CONTRIBUTING.md) and [security reports](SECURITY.md).
+The app writes `Documents/iw4l-boot.log` (visible in the Files app). It records startup steps, the texture cap that was chosen, memory use (`footprint`, and how much iOS still allows) and any panic or fatal signal. Attach it when reporting a problem.
 
-This whole project is written by an LLM.
+### Texture size limit
 
-## Acknowledgements and license
+The cap on texture size is chosen automatically from the memory iOS grants the app. To force a value, create a plain text file `iw4l-texture-cap.txt` in the same folder with only a number, for example `256`, then fully close and reopen the app.
 
-Thank you to all contributors for code, bug reports, testing and feedback.
-Special thanks to **ju1cedr1nker** and **silvernote03** for QA testing weapons,
-maps, attachments and other gameplay features.
+## What was changed from upstream IW4L
 
-[OpenAssetTools](https://github.com/Laupetin/OpenAssetTools) and its [iw4x-x64
-fork](https://github.com/iw4x-x64/oat) informed asset layouts;
-[IW4x](https://github.com/iw4x/iw4x-client) informed asset and protocol behavior;
-[KisakCOD](https://github.com/SwagSoftware/KisakCOD) informed engine structure.
-[Ghidra](https://github.com/NationalSecurityAgency/ghidra) was used to inspect the
-original binaries.
+- No BC texture feature on iOS: textures are decoded to RGBA8 with a size cap.
+- Rendering stays on the main thread (the Metal surface must be created there).
+- Sandbox paths in `Documents`, with an iOS `Info.plist` and app icon.
+- GameController bridge for gamepads, and touch input mapped to the left mouse button.
+- Boot log with memory tracing and crash signal capture.
 
-Movement implementation history and source boundaries are recorded in
-[its provenance note](docs/provenance/movement-iw4.md).
+## Build it yourself
 
-IW4L's source is licensed under [Apache 2.0](LICENSE). Preserve required attribution and
-bundled font license texts when redistributing; see [NOTICE](NOTICE). Original game
-assets and trademarks belong to their owners. IW4L is unaffiliated with them.
+Run the **ios-release** workflow from the Actions tab (macOS runner). Give it a tag to publish a release. Nothing runs automatically on push.
+
+## Support
+
+If you like this project, you can support it on [Ko-fi](https://ko-fi.com/marukoshi).
+
+## Credits and license
+
+This project is a port of [IW4L](https://github.com/vladtrc/iw4L) by vladtrc and contributors, licensed under Apache-2.0 (see `LICENSE` and `NOTICE`). The original README is kept in `README.upstream.md`.
+
+> IW4 Pocket is an unofficial fan project. It is not affiliated with or endorsed by Activision, Infinity Ward, Apple or the IW4L authors. Call of Duty and Modern Warfare are trademarks of their owners. You need to own a legitimate copy of the game.
