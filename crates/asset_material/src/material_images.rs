@@ -551,15 +551,15 @@ pub fn decode_in_zone_builtin_images(catalog: &mut MaterialDefinitions) -> usize
         };
         let is_normal = name.contains("normal");
         #[cfg(target_os = "ios")]
-        let (storage, payload) = ios_expand_to_rgba8(&mips, &mips.packed);
+        let (storage, payload, out_w, out_h, levels) = ios_expand_to_rgba8(&mips, &mips.packed);
         #[cfg(not(target_os = "ios"))]
-        let (storage, payload) = (mips.storage, mips.packed.clone());
+        let (storage, payload, out_w, out_h, levels) =
+            (mips.storage, mips.packed.clone(), mips.width, mips.height, mips.level_count());
         let format = DecodedMips::texture_format(storage, is_normal || !image.use_srgb_reads);
-        let levels = mips.level_count();
         let mut gpu = Image::new_uninit(
             Extent3d {
-                width: mips.width,
-                height: mips.height,
+                width: out_w,
+                height: out_h,
                 depth_or_array_layers: 1,
             },
             TextureDimension::D2,
@@ -1038,15 +1038,14 @@ fn wrap_payload(payload: &PreparedPayload, wrap: WrapRecipe) -> Arc<Image> {
 /// caller could afford.
 fn wrap_mips(mips: &DecodedMips, data: Vec<u8>, wrap: WrapRecipe) -> Image {
     #[cfg(target_os = "ios")]
-    let (storage, data) = ios_expand_to_rgba8(mips, &data);
+    let (storage, data, out_w, out_h, levels) = ios_expand_to_rgba8(mips, &data);
     #[cfg(not(target_os = "ios"))]
-    let storage = mips.storage;
+    let (storage, out_w, out_h, levels) = (mips.storage, mips.width, mips.height, mips.level_count());
     let format = DecodedMips::texture_format(storage, wrap.linear());
-    let levels = mips.level_count();
     let mut image = Image::new_uninit(
         Extent3d {
-            width: mips.width,
-            height: mips.height,
+            width: out_w,
+            height: out_h,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
@@ -3446,14 +3445,38 @@ fn decode_inline(
 }
 
 
-/// iOS/Apple GPUs have no BC (DXT) texture support: decode every mip level to RGBA8.
-/// Returns the new storage (always Rgba8) and the repacked payload. BC5 becomes
-/// (R, G, 0, 255) so a shader reading .rg sees the same two channels.
+/// Largest texture side kept on iOS. Higher mips are dropped, which cuts a texture's
+/// memory to a quarter per level. Override: write a number (e.g. 1024) in
+/// Documents/iw4l-texture-cap.txt.
 #[cfg(target_os = "ios")]
-fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>) {
-    if mips.storage == MipStorage::Rgba8 {
-        return (MipStorage::Rgba8, data.to_vec());
+fn ios_texture_cap() -> u32 {
+    static CAP: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *CAP.get_or_init(|| {
+        let path = std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+            .join("Documents")
+            .join("iw4l-texture-cap.txt");
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|text| text.trim().parse::<u32>().ok())
+            .filter(|cap| *cap >= 64)
+            .unwrap_or(512)
+    })
+}
+
+/// iOS/Apple GPUs have no BC (DXT) texture support: decode every kept mip level to RGBA8
+/// and drop the largest levels while the texture is wider than `ios_texture_cap()`.
+/// Returns (storage, payload, width, height, level count). BC5 becomes (R, G, 0, 255)
+/// so a shader reading .rg sees the same two channels.
+#[cfg(target_os = "ios")]
+fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>, u32, u32, u32) {
+    let cap = ios_texture_cap();
+    let total = mips.level_sizes.len();
+    let mut skip = 0usize;
+    while skip + 1 < total && (mips.width.max(mips.height) >> skip) > cap {
+        skip += 1;
     }
+    let width = (mips.width >> skip).max(1);
+    let height = (mips.height >> skip).max(1);
     let mut out = Vec::new();
     let mut at = 0usize;
     for (level, size) in mips.level_sizes.iter().enumerate() {
@@ -3462,6 +3485,9 @@ fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>)
             break;
         };
         at += size;
+        if level < skip {
+            continue;
+        }
         let w = (mips.width >> level).max(1);
         let h = (mips.height >> level).max(1);
         let rgba = match mips.storage {
@@ -3474,7 +3500,7 @@ fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>)
         .unwrap_or_else(|_| vec![255; w as usize * h as usize * 4]);
         out.extend_from_slice(&rgba);
     }
-    (MipStorage::Rgba8, out)
+    (MipStorage::Rgba8, out, width, height, (total - skip) as u32)
 }
 
 #[cfg(target_os = "ios")]

@@ -48,11 +48,19 @@ fn prepare_ios_sandbox() {
     }
 }
 
-/// iOS has no console and jetsam kills leave no panic: log resident memory every
-/// 2 s so the last line before a silent exit shows how much RAM was in use.
+/// iOS has no console and jetsam kills leave no panic. Sample memory 4x/s and log on
+/// every 40 MB change (or every 2 s): the last line before a silent exit shows the
+/// footprint and how many bytes iOS still allowed this process (os_proc_available_memory).
+#[cfg(target_os = "ios")]
+unsafe extern "C" {
+    fn os_proc_available_memory() -> usize;
+}
+
 #[cfg(target_os = "ios")]
 fn spawn_memory_logger() {
     let _ = std::thread::Builder::new().name("mem-log".into()).spawn(|| {
+        let mut last_mb = 0u64;
+        let mut last_log = std::time::Instant::now();
         loop {
             // SAFETY: plain mach call filling a zeroed POD struct of the advertised size.
             let resident_mb = unsafe {
@@ -69,10 +77,44 @@ fn spawn_memory_logger() {
                 );
                 if kr == 0 { info.resident_size / (1024 * 1024) } else { 0 }
             };
-            diag::boot_crumb(&format!("mem: resident {resident_mb} MB"));
-            std::thread::sleep(std::time::Duration::from_secs(2));
+            let changed = resident_mb.abs_diff(last_mb) >= 40;
+            if changed || last_log.elapsed() >= std::time::Duration::from_secs(2) {
+                // SAFETY: no arguments, returns a byte count (iOS 13+).
+                let available_mb = unsafe { os_proc_available_memory() } / (1024 * 1024);
+                diag::boot_crumb(&format!(
+                    "mem: resident {resident_mb} MB, iOS still allows {available_mb} MB"
+                ));
+                last_mb = resident_mb;
+                last_log = std::time::Instant::now();
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
         }
     });
+}
+
+/// A fatal signal (SIGSEGV, SIGABRT, ...) is not a panic. Log which one, then die as usual.
+/// SIGKILL cannot be caught: if the log just stops, that is iOS killing the app for memory.
+#[cfg(target_os = "ios")]
+extern "C" fn fatal_signal(signal: libc::c_int) {
+    diag::boot_crumb(&format!(
+        "FATAL SIGNAL {signal} (11=SEGV 6=ABRT 10=BUS 4=ILL 5=TRAP)\n{}",
+        std::backtrace::Backtrace::force_capture()
+    ));
+    // SAFETY: restore the default action and re-raise so iOS still gets its crash report.
+    unsafe {
+        libc::signal(signal, libc::SIG_DFL);
+        libc::raise(signal);
+    }
+}
+
+#[cfg(target_os = "ios")]
+fn install_signal_logging() {
+    for signal in [libc::SIGSEGV, libc::SIGABRT, libc::SIGBUS, libc::SIGILL, libc::SIGTRAP] {
+        // SAFETY: installing a plain C handler at startup.
+        unsafe {
+            libc::signal(signal, fatal_signal as extern "C" fn(libc::c_int) as libc::sighandler_t);
+        }
+    }
 }
 
 fn main() {
@@ -85,6 +127,7 @@ fn main() {
                 .join("iw4l-boot.log"),
         );
         diag::boot_crumb("1 main entered, sandbox ready");
+        install_signal_logging();
         spawn_memory_logger();
         std::panic::set_hook(Box::new(|info| {
             let thread = std::thread::current();
