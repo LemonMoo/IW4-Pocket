@@ -98,8 +98,12 @@ pub fn default_plugins_with_quiet_log(mut window: WindowPlugin) -> bevy::app::Pl
         primary.desired_maximum_frame_latency = core::num::NonZeroU32::new(frame_latency());
     }
     let mut wgpu = WgpuSettings::default();
+    // Apple GPUs have no BC compression: on iOS textures are decoded to RGBA8 instead.
+    #[cfg(not(target_os = "ios"))]
+    {
+        wgpu.features |= WgpuFeatures::TEXTURE_COMPRESSION_BC;
+    }
     wgpu.features |= WgpuFeatures::TEXTURE_FORMAT_16BIT_NORM
-        | WgpuFeatures::TEXTURE_COMPRESSION_BC
         | WgpuFeatures::POLYGON_MODE_LINE
         | WgpuFeatures::TEXTURE_BINDING_ARRAY
         | WgpuFeatures::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING

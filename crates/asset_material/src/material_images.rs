@@ -550,7 +550,11 @@ pub fn decode_in_zone_builtin_images(catalog: &mut MaterialDefinitions) -> usize
             continue;
         };
         let is_normal = name.contains("normal");
-        let format = DecodedMips::texture_format(mips.storage, is_normal || !image.use_srgb_reads);
+        #[cfg(target_os = "ios")]
+        let (storage, payload) = ios_expand_to_rgba8(&mips, &mips.packed);
+        #[cfg(not(target_os = "ios"))]
+        let (storage, payload) = (mips.storage, mips.packed.clone());
+        let format = DecodedMips::texture_format(storage, is_normal || !image.use_srgb_reads);
         let levels = mips.level_count();
         let mut gpu = Image::new_uninit(
             Extent3d {
@@ -563,7 +567,7 @@ pub fn decode_in_zone_builtin_images(catalog: &mut MaterialDefinitions) -> usize
             RenderAssetUsages::RENDER_WORLD,
         );
         gpu.texture_descriptor.mip_level_count = levels;
-        gpu.data = Some(mips.into_payload());
+        gpu.data = Some(payload);
         gpu.sampler = ImageSampler::Descriptor(sampler_from_iw4(0, levels, false));
         image.decoded = Some(Arc::new(gpu));
         decoded += 1;
@@ -1033,7 +1037,11 @@ fn wrap_payload(payload: &PreparedPayload, wrap: WrapRecipe) -> Arc<Image> {
 /// The image `mips` describes, over `data` — copied or moved, whichever the
 /// caller could afford.
 fn wrap_mips(mips: &DecodedMips, data: Vec<u8>, wrap: WrapRecipe) -> Image {
-    let format = DecodedMips::texture_format(mips.storage, wrap.linear());
+    #[cfg(target_os = "ios")]
+    let (storage, data) = ios_expand_to_rgba8(mips, &data);
+    #[cfg(not(target_os = "ios"))]
+    let storage = mips.storage;
+    let format = DecodedMips::texture_format(storage, wrap.linear());
     let levels = mips.level_count();
     let mut image = Image::new_uninit(
         Extent3d {
@@ -3435,4 +3443,67 @@ fn decode_inline(
         }
     }
     stats
+}
+
+
+/// iOS/Apple GPUs have no BC (DXT) texture support: decode every mip level to RGBA8.
+/// Returns the new storage (always Rgba8) and the repacked payload. BC5 becomes
+/// (R, G, 0, 255) so a shader reading .rg sees the same two channels.
+#[cfg(target_os = "ios")]
+fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>) {
+    if mips.storage == MipStorage::Rgba8 {
+        return (MipStorage::Rgba8, data.to_vec());
+    }
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    for (level, size) in mips.level_sizes.iter().enumerate() {
+        let size = *size as usize;
+        let Some(src) = data.get(at..at + size) else {
+            break;
+        };
+        at += size;
+        let w = (mips.width >> level).max(1);
+        let h = (mips.height >> level).max(1);
+        let rgba = match mips.storage {
+            MipStorage::Bc1 => decode_blocks(src, w, h, PixelFormat::Bc1),
+            MipStorage::Bc2 => decode_blocks(src, w, h, PixelFormat::Bc2),
+            MipStorage::Bc3 => decode_blocks(src, w, h, PixelFormat::Bc3),
+            MipStorage::Bc5 => decode_bc5_rg_to_rgba(src, w, h),
+            MipStorage::Rgba8 => Ok(src.to_vec()),
+        }
+        .unwrap_or_else(|_| vec![255; w as usize * h as usize * 4]);
+        out.extend_from_slice(&rgba);
+    }
+    (MipStorage::Rgba8, out)
+}
+
+#[cfg(target_os = "ios")]
+fn decode_bc5_rg_to_rgba(data: &[u8], width: u32, height: u32) -> Result<Vec<u8>, String> {
+    let bw = width.div_ceil(4) as usize;
+    let bh = height.div_ceil(4) as usize;
+    if data.len() < bw * bh * 16 {
+        return Err("truncated BC5 image".into());
+    }
+    let mut out = vec![0u8; width as usize * height as usize * 4];
+    let (mut r, mut g) = ([0u8; 16], [0u8; 16]);
+    for by in 0..bh {
+        for bx in 0..bw {
+            let block = &data[(by * bw + bx) * 16..][..16];
+            bcdec_rs::bc4(&block[..8], &mut r, 4, false);
+            bcdec_rs::bc4(&block[8..], &mut g, 4, false);
+            for y in 0..4 {
+                for x in 0..4 {
+                    let (dx, dy) = (bx * 4 + x, by * 4 + y);
+                    if dx < width as usize && dy < height as usize {
+                        let d = (dy * width as usize + dx) * 4;
+                        out[d] = r[y * 4 + x];
+                        out[d + 1] = g[y * 4 + x];
+                        out[d + 2] = 0;
+                        out[d + 3] = 255;
+                    }
+                }
+            }
+        }
+    }
+    Ok(out)
 }
