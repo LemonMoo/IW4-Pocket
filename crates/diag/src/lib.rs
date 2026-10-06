@@ -213,7 +213,19 @@ pub fn latest_log_path() -> Option<PathBuf> {
         .and_then(|g| g.latest.clone())
 }
 
+/// iOS has no console: append breadcrumbs to Documents/iw4l-boot.log (visible in Files).
+pub fn boot_crumb(message: &str) {
+    if let Some(home) = std::env::var_os("HOME") {
+        let path = std::path::Path::new(&home).join("Documents").join("iw4l-boot.log");
+        if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            use std::io::Write;
+            let _ = writeln!(file, "{message}");
+        }
+    }
+}
+
 pub fn exit_launch_error(message: &str) -> ! {
+    boot_crumb(&format!("LAUNCH ERROR: {message}"));
     write_event(Channel::Launch, Level::Error, message, None, None);
     if let Some(sink) = SINK.get()
         && let Ok(mut state) = sink.lock()

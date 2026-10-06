@@ -50,7 +50,23 @@ fn prepare_ios_sandbox() {
 
 fn main() {
     #[cfg(target_os = "ios")]
-    prepare_ios_sandbox();
+    {
+        prepare_ios_sandbox();
+        let _ = std::fs::remove_file(
+            PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
+                .join("Documents")
+                .join("iw4l-boot.log"),
+        );
+        diag::boot_crumb("1 main entered, sandbox ready");
+        std::panic::set_hook(Box::new(|info| {
+            let thread = std::thread::current();
+            diag::boot_crumb(&format!(
+                "PANIC on thread {:?}: {info}\n{}",
+                thread.name(),
+                std::backtrace::Backtrace::force_capture()
+            ));
+        }));
+    }
     if std::env::args_os()
         .nth(1)
         .is_some_and(|arg| arg == "licenses")
@@ -60,6 +76,8 @@ fn main() {
         }
         return;
     }
+    #[cfg(target_os = "ios")]
+    diag::boot_crumb("2 updater::startup");
     let mut args = match updater::startup().unwrap_or_else(|e| diag::exit_launch_error(&e)) {
         Some(args) => args,
         None => return,
@@ -67,6 +85,8 @@ fn main() {
     if args.is_empty() {
         args.push("menu".into());
     }
+    #[cfg(target_os = "ios")]
+    diag::boot_crumb("3 after updater");
     bootstrap::bench::arm();
     prepare_process_root().unwrap_or_else(|e| {
         diag::exit_launch_error(&e);
@@ -79,6 +99,8 @@ fn main() {
     )
     .unwrap_or_else(|e| diag::exit_launch_error(&e));
     let games = games_root_from_env().unwrap_or_else(|e| diag::exit_launch_error(&e));
+    #[cfg(target_os = "ios")]
+    diag::boot_crumb("4 calling bootstrap::launch");
     bootstrap::launch(games, artifacts, mode, acceptance, cheats);
 }
 
