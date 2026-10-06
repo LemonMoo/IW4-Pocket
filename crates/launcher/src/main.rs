@@ -48,6 +48,33 @@ fn prepare_ios_sandbox() {
     }
 }
 
+/// iOS has no console and jetsam kills leave no panic: log resident memory every
+/// 2 s so the last line before a silent exit shows how much RAM was in use.
+#[cfg(target_os = "ios")]
+fn spawn_memory_logger() {
+    let _ = std::thread::Builder::new().name("mem-log".into()).spawn(|| {
+        loop {
+            // SAFETY: plain mach call filling a zeroed POD struct of the advertised size.
+            let resident_mb = unsafe {
+                let mut info: libc::mach_task_basic_info = std::mem::zeroed();
+                let mut count = (size_of::<libc::mach_task_basic_info>() / size_of::<u32>())
+                    as libc::mach_msg_type_number_t;
+                #[allow(deprecated)]
+                let task = libc::mach_task_self();
+                let kr = libc::task_info(
+                    task,
+                    libc::MACH_TASK_BASIC_INFO,
+                    (&raw mut info).cast(),
+                    &raw mut count,
+                );
+                if kr == 0 { info.resident_size / (1024 * 1024) } else { 0 }
+            };
+            diag::boot_crumb(&format!("mem: resident {resident_mb} MB"));
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+    });
+}
+
 fn main() {
     #[cfg(target_os = "ios")]
     {
@@ -58,6 +85,7 @@ fn main() {
                 .join("iw4l-boot.log"),
         );
         diag::boot_crumb("1 main entered, sandbox ready");
+        spawn_memory_logger();
         std::panic::set_hook(Box::new(|info| {
             let thread = std::thread::current();
             diag::boot_crumb(&format!(

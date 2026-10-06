@@ -132,14 +132,14 @@ const PIPELINED_RENDERING_ENV: &str = "IW4L_PIPELINED_RENDERING";
 /// boundary; the bounded render channel permits one outstanding frame.
 /// Set IW4L_PIPELINED_RENDERING=0 for synchronous presentation.
 ///
-/// Off by default on macOS: AppKit only lets the main thread touch the NSView
+/// Off by default on macOS and iOS: AppKit only lets the main thread touch the NSView
 /// behind the Metal surface. Bevy hands `create_surfaces` back to the main
 /// thread through the multi-threaded executor, which the single-threaded
 /// `Render` schedule above bypasses, so the render thread would create it and
 /// panic in `raw-window-metal`.
 fn pipelined_rendering() -> bool {
     match std::env::var_os(PIPELINED_RENDERING_ENV) {
-        None => !cfg!(target_os = "macos"),
+        None => !cfg!(any(target_os = "macos", target_os = "ios")),
         Some(_) => perf::switch(PIPELINED_RENDERING_ENV),
     }
 }

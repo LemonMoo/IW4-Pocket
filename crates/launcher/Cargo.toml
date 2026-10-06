@@ -19,5 +19,8 @@ diag.workspace = true
 asset_transport.workspace = true
 bootstrap = { path = "../bootstrap" }
 
+[target.'cfg(target_os = "ios")'.dependencies]
+libc = "0.2"
+
 [lints]
 workspace = true
