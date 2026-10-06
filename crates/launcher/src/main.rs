@@ -56,35 +56,73 @@ unsafe extern "C" {
     fn os_proc_available_memory() -> usize;
 }
 
+/// task_vm_info up to `phys_footprint`, the number iOS actually enforces (it includes
+/// GPU-backed and compressed memory that `resident_size` misses).
+#[cfg(target_os = "ios")]
+#[repr(C)]
+#[derive(Default)]
+struct TaskVmInfo {
+    virtual_size: u64,
+    region_count: i32,
+    page_size: i32,
+    resident_size: u64,
+    resident_size_peak: u64,
+    device: u64,
+    device_peak: u64,
+    internal: u64,
+    internal_peak: u64,
+    external: u64,
+    external_peak: u64,
+    reusable: u64,
+    reusable_peak: u64,
+    purgeable_volatile_pmap: u64,
+    purgeable_volatile_resident: u64,
+    purgeable_volatile_virtual: u64,
+    compressed: u64,
+    compressed_peak: u64,
+    compressed_lifetime: u64,
+    phys_footprint: u64,
+}
+
+#[cfg(target_os = "ios")]
+fn footprint_mb() -> u64 {
+    const TASK_VM_INFO: libc::c_int = 22;
+    let mut info = TaskVmInfo::default();
+    let mut count = (size_of::<TaskVmInfo>() / size_of::<u32>()) as libc::mach_msg_type_number_t;
+    // SAFETY: the struct mirrors the kernel's task_vm_info prefix; count bounds the write.
+    #[allow(deprecated)]
+    let kr = unsafe {
+        libc::task_info(
+            libc::mach_task_self(),
+            TASK_VM_INFO as _,
+            (&raw mut info).cast(),
+            &raw mut count,
+        )
+    };
+    if kr == 0 { info.phys_footprint / (1024 * 1024) } else { 0 }
+}
+
+/// iOS has no console and jetsam kills leave no panic. Sample 4x/s and log on every 40 MB
+/// change (or every 2 s): footprint (what iOS enforces, GPU included), what iOS still
+/// allows, and the RGBA texture bytes sent to the GPU. The last line before a silent exit
+/// shows how much memory was left.
 #[cfg(target_os = "ios")]
 fn spawn_memory_logger() {
     let _ = std::thread::Builder::new().name("mem-log".into()).spawn(|| {
         let mut last_mb = 0u64;
         let mut last_log = std::time::Instant::now();
         loop {
-            // SAFETY: plain mach call filling a zeroed POD struct of the advertised size.
-            let resident_mb = unsafe {
-                let mut info: libc::mach_task_basic_info = std::mem::zeroed();
-                let mut count = (size_of::<libc::mach_task_basic_info>() / size_of::<u32>())
-                    as libc::mach_msg_type_number_t;
-                #[allow(deprecated)]
-                let task = libc::mach_task_self();
-                let kr = libc::task_info(
-                    task,
-                    libc::MACH_TASK_BASIC_INFO,
-                    (&raw mut info).cast(),
-                    &raw mut count,
-                );
-                if kr == 0 { info.resident_size / (1024 * 1024) } else { 0 }
-            };
-            let changed = resident_mb.abs_diff(last_mb) >= 40;
+            let footprint = footprint_mb();
+            let changed = footprint.abs_diff(last_mb) >= 40;
             if changed || last_log.elapsed() >= std::time::Duration::from_secs(2) {
                 // SAFETY: no arguments, returns a byte count (iOS 13+).
                 let available_mb = unsafe { os_proc_available_memory() } / (1024 * 1024);
+                let tex_mb =
+                    diag::IOS_TEXTURE_BYTES.load(std::sync::atomic::Ordering::Relaxed) / (1024 * 1024);
                 diag::boot_crumb(&format!(
-                    "mem: resident {resident_mb} MB, iOS still allows {available_mb} MB"
+                    "mem: footprint {footprint} MB, iOS still allows {available_mb} MB, textures sent {tex_mb} MB"
                 ));
-                last_mb = resident_mb;
+                last_mb = footprint;
                 last_log = std::time::Instant::now();
             }
             std::thread::sleep(std::time::Duration::from_millis(250));

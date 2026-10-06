@@ -213,6 +213,9 @@ pub fn latest_log_path() -> Option<PathBuf> {
         .and_then(|g| g.latest.clone())
 }
 
+/// RGBA8 bytes handed to the GPU by the iOS texture path (see asset_material).
+pub static IOS_TEXTURE_BYTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// iOS has no console: append breadcrumbs to Documents/iw4l-boot.log (visible in Files).
 pub fn boot_crumb(message: &str) {
     if let Some(home) = std::env::var_os("HOME") {

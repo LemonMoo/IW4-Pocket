@@ -3445,22 +3445,43 @@ fn decode_inline(
 }
 
 
-/// Largest texture side kept on iOS. Higher mips are dropped, which cuts a texture's
-/// memory to a quarter per level. Override: write a number (e.g. 1024) in
-/// Documents/iw4l-texture-cap.txt.
+#[cfg(target_os = "ios")]
+unsafe extern "C" {
+    fn os_proc_available_memory() -> usize;
+}
+
+/// Largest texture side kept on iOS. Higher mips are dropped (a quarter of the memory
+/// per level). Order: Documents/iw4l-texture-cap.txt (a number >= 64) wins; otherwise
+/// it is derived from the memory iOS grants this process at the first texture.
+/// The choice is written to Documents/iw4l-boot.log.
 #[cfg(target_os = "ios")]
 fn ios_texture_cap() -> u32 {
     static CAP: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
-    *CAP.get_or_init(|| {
+    let base = *CAP.get_or_init(|| {
         let path = std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default())
             .join("Documents")
             .join("iw4l-texture-cap.txt");
-        std::fs::read_to_string(path)
+        let from_file = std::fs::read_to_string(&path)
             .ok()
             .and_then(|text| text.trim().parse::<u32>().ok())
-            .filter(|cap| *cap >= 64)
-            .unwrap_or(512)
-    })
+            .filter(|cap| *cap >= 64);
+        // SAFETY: no arguments, returns a byte count (iOS 13+).
+        let budget_mb = unsafe { os_proc_available_memory() } / (1024 * 1024);
+        let (cap, why) = match from_file {
+            Some(cap) => (cap, "from iw4l-texture-cap.txt"),
+            None if budget_mb < 3500 => (256, "auto, budget under 3.5 GB"),
+            None if budget_mb < 5500 => (512, "auto, budget under 5.5 GB"),
+            None => (1024, "auto, budget 5.5 GB or more"),
+        };
+        diag::boot_crumb(&format!(
+            "texture cap: {cap}px ({why}); iOS grants {budget_mb} MB at first texture"
+        ));
+        cap
+    });
+    // Safety valve: when iOS is about to kill the app, shrink everything that loads next.
+    // SAFETY: no arguments, returns a byte count (iOS 13+).
+    let left_mb = unsafe { os_proc_available_memory() } / (1024 * 1024);
+    if left_mb < 500 { base.min(128) } else if left_mb < 900 { base.min(256) } else { base }
 }
 
 /// iOS/Apple GPUs have no BC (DXT) texture support: decode every kept mip level to RGBA8
@@ -3500,6 +3521,7 @@ fn ios_expand_to_rgba8(mips: &DecodedMips, data: &[u8]) -> (MipStorage, Vec<u8>,
         .unwrap_or_else(|_| vec![255; w as usize * h as usize * 4]);
         out.extend_from_slice(&rgba);
     }
+    diag::IOS_TEXTURE_BYTES.fetch_add(out.len() as u64, std::sync::atomic::Ordering::Relaxed);
     (MipStorage::Rgba8, out, width, height, (total - skip) as u32)
 }
 
