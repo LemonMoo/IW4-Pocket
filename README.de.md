@@ -59,14 +59,7 @@ Ausprobiert? [Eröffne ein Issue](https://github.com/MarkusSela/IW4-Pocket/issue
 - **Controller nicht erkannt**: erst in Bluetooth koppeln, dann die App neu öffnen
 - **App schließt sich auf einer Karte**: das ist das bekannte Speicherproblem. Sende das Protokoll
 - **Texturen begrenzen**: lege eine Textdatei `iw4l-texture-cap.txt` mit nur einer Zahl an, z. B. `256`, und starte die App komplett neu
-- **Speichereinstellungen (Kandidat 0.2.1):** Erstelle `iw4l-env.txt` im App-Ordner, beende die App vollständig und öffne sie erneut. Nur geprüfte Einstellungen werden angenommen; unbekannte Namen und ungültige Werte werden ignoriert.
-  ```text
-  IW4L_FPV_RETAIN_MIB=0
-  IW4L_SHADER_WORKERS=1
-  IW4L_MOVE_IMAGES=1
-  ```
-  iOS-Standard: optionaler FPV-Payload-Cache für die nächste Karte aus, ein Shader-Worker, Übergabe eindeutig besessener Bilder statt Kopie. Aktive Waffen und Donor-Batches bleiben erhalten. Ein kleinerer Cache kann den nächsten Ladevorgang verlangsamen. Für A/B: `IW4L_FPV_RETAIN_MIB=64`, `IW4L_SHADER_WORKERS=4` oder `IW4L_MOVE_IMAGES=0`, jeweils nur einen Wert ändern. FPV: 0–1024 MiB; Worker: 1–64, begrenzt durch den vorhandenen Pool. Ebenfalls erlaubt: `IW4L_IMAGE_DECODE_BUDGET_MIB` und `IW4L_CACHE_BUDGET_MIB` (0–4096), `IW4L_SOUND` (`on`/`off` oder `1`/`0`).
-- **Berichte:** Sende `iw4l-boot.log` und `iw4l-memory-settings.txt`. Wenn erzeugt, enthält `summary.json` auch Einstellungen und einen Speichersnapshot. Footprint und malloc-Heap sind aktuelle Werte; Kategorietraffic und Texturexpansion sind kumulativ, kein aktueller GPU-Speicher. Überlappende Phasen sowie Cache und aktive Assets nicht addieren. **Der neue Kandidat wurde noch nicht auf dem iPhone getestet; der Kartenabsturz gilt nicht als behoben.**
+- **Fortgeschritten:** eine Textdatei `iw4l-env.txt` mit Zeilen `IW4L_NAME=Wert` setzt die Schalter der Engine ohne Neubau. Namen müssen mit `IW4L_` beginnen
 
 ## 🛠️ Selbst bauen
 
@@ -74,7 +67,7 @@ Starte den Workflow **ios-release** im Actions-Tab (macOS-Runner) und gib einen 
 
 ## ⚖️ Credits und Rechtliches
 
-Port von [IW4L](https://github.com/vladtrc/iw4L) von vladtrc und Mitwirkenden (Apache-2.0, siehe `LICENSE`, `NOTICE`; Original-README in `README.upstream.md`).
+Port von [IW4L](https://github.com/vladtrc/iw4L) von vladtrc und Mitwirkenden (Apache-2.0, siehe `LICENSE`, `NOTICE`; Original-README in `README.upstream.md`). Speicherkorrekturen und BC-Texturen: [treuenten](https://github.com/treuenten) ([issue #1](https://github.com/MarkusSela/IW4-Pocket/issues/1)).
 
 > Inoffizielles Fanprojekt, nicht verbunden mit Activision, Infinity Ward, Apple oder den IW4L-Autoren. Call of Duty und Modern Warfare sind Marken ihrer Inhaber. Du benötigst eine legitime Kopie des Spiels.
 

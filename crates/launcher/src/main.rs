@@ -124,6 +124,9 @@ fn main() {
         for line in diag::ios_env::apply_env_file(&docs.join("iw4l-env.txt")) {
             diag::boot_crumb(&format!("iw4l-env.txt: {line}"));
         }
+        if let Some(bytes) = diag::ios_env::available_bytes() {
+            diag::memory_settings::record_granted_mib(bytes / (1024 * 1024));
+        }
         let settings = diag::memory_settings::get().report();
         diag::boot_crumb(&settings);
         // Persist effective controls even if jetsam kills us before summary.json.

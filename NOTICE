@@ -8,6 +8,19 @@ https://github.com/vladtrc/iw4L
 IW4L is licensed under the Apache License, Version 2.0; see LICENSE.
 
 --------------------------------------------------------------------------------
+IW4 Pocket (iOS port) contributions
+--------------------------------------------------------------------------------
+Memory fixes (resident map off on iOS, release of FPV GPU textures) and BC texture
+support on Apple9+ GPUs: authored by treuenten (JohnM),
+https://github.com/MarkusSela/IW4-Pocket/issues/1 — imported with git cherry-pick -x,
+original authorship kept in the commit history.
+
+vendor/wgpu-hal is wgpu-hal 29.0.4 (MIT OR Apache-2.0, licences included in that
+directory) with ONE modified file, src/metal/adapter.rs (6 lines, marked in the file),
+backported from gfx-rs/wgpu#9656.
+
+
+--------------------------------------------------------------------------------
 Third-party material bundled with this repository
 --------------------------------------------------------------------------------
 

@@ -39,6 +39,8 @@ class Contract(unittest.TestCase):
         src = text("crates/diag/src/memory_settings.rs")
         self.assertIn("IW4L_FPV_RETAIN_MIB", src)
         self.assertIn("IW4L_SHADER_WORKERS", src)
+        self.assertIn("Tier::pick", src)
+        self.assertIn("RESIDENT_MAP_ENV", src)
 
     def test_workflow_verifies_before_publish(self):
         wf = text(".github/workflows/ios-release.yml")
