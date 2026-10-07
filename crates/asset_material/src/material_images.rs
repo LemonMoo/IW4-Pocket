@@ -607,6 +607,7 @@ enum PreparedPayload {
 struct PreparedMip {
     mips: DecodedMips,
     images: Vec<(WrapRecipe, Arc<Image>)>,
+    accounted_bytes: u64,
 }
 
 /// Everything an asker wraps around shared texels, and nothing that decides
@@ -647,6 +648,7 @@ impl WrapRecipe {
 impl PreparedPayload {
     fn mips(mips: DecodedMips) -> Self {
         Self::Mips(std::sync::Mutex::new(PreparedMip {
+            accounted_bytes: mips.packed.len() as u64,
             mips,
             images: Vec::new(),
         }))
@@ -684,7 +686,10 @@ impl PreparedPayload {
 
 impl Drop for PreparedPayload {
     fn drop(&mut self) {
-        let bytes = self.bytes();
+        let bytes = match self {
+            Self::Mips(state) => state.get_mut().unwrap_or_else(|p| p.into_inner()).accounted_bytes,
+            Self::Cubemap { faces, .. } => faces.iter().map(|face| face.len() as u64).sum(),
+        };
         if bytes > 0 {
             RESIDENT_PAYLOAD_BYTES.fetch_sub(bytes, Ordering::Relaxed);
         }
@@ -1018,19 +1023,32 @@ fn wrap_payload(payload: &PreparedPayload, wrap: WrapRecipe) -> Arc<Image> {
                 let packed = std::mem::take(&mut state.mips.packed);
                 MOVED_BYTES.fetch_add(packed.len() as u64, Ordering::Relaxed);
                 let image = Arc::new(wrap_mips(&state.mips, packed, wrap));
+                // iOS expands BC and drops mips: the new size is not the old
+                // decode charge. Balance it now, and release this exact charge
+                // on Drop rather than subtracting a different size later.
+                let bytes = image_bytes(&image);
+                RESIDENT_PAYLOAD_BYTES.fetch_add(bytes, Ordering::Relaxed);
+                RESIDENT_PAYLOAD_BYTES.fetch_sub(state.accounted_bytes, Ordering::Relaxed);
+                state.accounted_bytes = bytes;
                 state.images.push((wrap, Arc::clone(&image)));
                 return image;
             }
-            let data = state.images[0]
-                .1
-                .data
-                .as_ref()
-                .expect("prepared image owns its payload")
-                .clone();
-            WRAPPED_BYTES.fetch_add(data.len() as u64, Ordering::Relaxed);
-            diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, data.len() as u64);
-            let image = Arc::new(wrap_mips(&state.mips, data, wrap));
-            image
+            // This is already a fully wrapped Image (RGBA on iOS). Feeding its
+            // bytes back through wrap_mips would decode RGBA as BC a second time.
+            // A distinct sampler/colour space needs one Image copy, not a decode.
+            let mut image = state.images[0].1.as_ref().clone();
+            let bytes = image_bytes(&image);
+            WRAPPED_BYTES.fetch_add(bytes, Ordering::Relaxed);
+            diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
+            #[cfg(target_os = "ios")]
+            let storage = MipStorage::Rgba8;
+            #[cfg(not(target_os = "ios"))]
+            let storage = state.mips.storage;
+            image.texture_descriptor.format = DecodedMips::texture_format(storage, wrap.linear());
+            image.sampler = ImageSampler::Descriptor(sampler_from_iw4(
+                wrap.sampler_state, image.texture_descriptor.mip_level_count, wrap.alpha_test_color,
+            ));
+            Arc::new(image)
         }
     }
 }
@@ -2622,9 +2640,91 @@ impl Drop for DecodedImageBatch {
 pub struct PayloadRetention {
     held: HashMap<usize, Arc<PreparedPayload>>,
     bytes: u64,
+    fpv_bytes: u64,
+}
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    fn recipe() -> WrapRecipe {
+        WrapRecipe { sampler_state: 0, is_normal: false, alpha_test_color: false,
+            force_linear: false, use_srgb_reads: true }
+    }
+
+    fn batch(payload: Arc<PreparedPayload>) -> DecodedImageBatch {
+        let mut batch = DecodedImageBatch::default();
+        batch.decoded = vec![PreparedImage { name: "test".into(), payload,
+            wrap: recipe(), variant: None, shared: false }];
+        batch
+    }
+
+    #[test]
+    fn fpv_cache_zero_cap_exact_cap_dedup_and_release() {
+        let payload = PreparedPayload::mips(DecodedMips::single(1, 1, vec![1, 2, 3, 4])).owned();
+        let image = wrap_payload(&payload, recipe());
+        let batch = batch(Arc::clone(&payload));
+        let before = Arc::strong_count(&payload);
+        let mut cache = PayloadRetention::default();
+        assert_eq!(cache.keep_bounded(&batch, 0), 0);
+        assert_eq!(cache.keep_bounded(&batch, 3), 0);
+        assert_eq!(cache.keep_bounded(&batch, 4), 4);
+        assert_eq!(cache.keep_bounded(&batch, 4), 0);
+        assert_eq!(cache.payloads(), 1);
+        assert_eq!(cache.bytes(), 4);
+        assert_eq!(Arc::strong_count(&payload), before + 1);
+        drop(cache);
+        assert_eq!(Arc::strong_count(&payload), before);
+        assert_eq!(image.data.as_deref(), Some(&[1, 2, 3, 4][..]));
+    }
+
+    #[test]
+    fn unwrapped_payload_is_not_admitted_to_bounded_cache() {
+        let batch = batch(PreparedPayload::mips(DecodedMips::single(1, 1, vec![0; 4])).owned());
+        assert_eq!(PayloadRetention::default().keep_bounded(&batch, 64), 0);
+    }
+
+    #[test]
+    fn alternate_wrapper_preserves_texels_and_dimensions() {
+        let payload = PreparedPayload::mips(DecodedMips::single(1, 1, vec![1, 2, 3, 4])).owned();
+        let first = wrap_payload(&payload, recipe());
+        let second = wrap_payload(&payload, WrapRecipe { force_linear: true, ..recipe() });
+        assert_eq!(first.data, second.data);
+        assert_eq!(first.texture_descriptor.size, second.texture_descriptor.size);
+        assert_eq!(first.texture_descriptor.mip_level_count, second.texture_descriptor.mip_level_count);
+        assert_ne!(first.texture_descriptor.format, second.texture_descriptor.format);
+        if let PreparedPayload::Mips(state) = payload.as_ref() {
+            assert_eq!(state.lock().unwrap().accounted_bytes, image_bytes(&first));
+        }
+    }
 }
 
 impl PayloadRetention {
+    /// Optional FPV reuse only. Call after apply; unwrapped/discarded payloads
+    /// are skipped so retained allocations cannot grow after admission.
+    /// Donor batches remain separate and are required by the merge path.
+    pub fn keep_bounded(&mut self, batch: &DecodedImageBatch, limit: u64) -> u64 {
+        let mut added = 0;
+        for image in &batch.decoded {
+            let key = Arc::as_ptr(&image.payload) as usize;
+            if self.held.contains_key(&key) { continue; }
+            if let PreparedPayload::Mips(state) = image.payload.as_ref()
+                && state.lock().unwrap_or_else(|p| p.into_inner()).images.is_empty()
+            {
+                continue;
+            }
+            let bytes = image.payload.bytes();
+            if !diag::memory_settings::admits_bytes(self.bytes, bytes, limit) { continue; }
+            self.held.insert(key, Arc::clone(&image.payload));
+            self.bytes += bytes;
+            added += bytes;
+        }
+        RETAINED_PAYLOAD_BYTES.fetch_add(added, Ordering::Relaxed);
+        self.fpv_bytes += added;
+        diag::memtrack::FPV_RETAINED_BYTES.fetch_add(added, Ordering::Relaxed);
+        added
+    }
+
     pub fn keep(&mut self, batch: &DecodedImageBatch) -> u64 {
         let mut added = 0;
         for image in &batch.decoded {
@@ -2651,6 +2751,7 @@ impl PayloadRetention {
 impl Drop for PayloadRetention {
     fn drop(&mut self) {
         RETAINED_PAYLOAD_BYTES.fetch_sub(self.bytes, Ordering::Relaxed);
+        diag::memtrack::FPV_RETAINED_BYTES.fetch_sub(self.fpv_bytes, Ordering::Relaxed);
     }
 }
 

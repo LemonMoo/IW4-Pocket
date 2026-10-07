@@ -59,7 +59,14 @@ L'hai provato? [Apri una segnalazione](https://github.com/MarkusSela/IW4-Pocket/
 - **Controller non rilevato**: collegalo prima nel Bluetooth, poi riapri l'app
 - **L'app si chiude su una mappa**: è il problema di memoria noto. Mandami il log
 - **Per limitare le texture**: aggiungi un file di testo `iw4l-texture-cap.txt` con solo un numero, ad esempio `256`, poi riavvia del tutto l'app
-- **Avanzate:** un file di testo `iw4l-env.txt` con righe `IW4L_NOME=valore` imposta gli interruttori del motore senza ricompilare. I nomi devono iniziare con `IW4L_`
+- **Controlli memoria (candidato 0.2.1):** crea `iw4l-env.txt` nella cartella dell’app, poi chiudi completamente e riapri. Sono ammessi solo controlli convalidati; nomi sconosciuti e valori non validi vengono ignorati.
+  ```text
+  IW4L_FPV_RETAIN_MIB=0
+  IW4L_SHADER_WORKERS=1
+  IW4L_MOVE_IMAGES=1
+  ```
+  Sono i valori predefiniti iOS: cache opzionale dei payload FPV per la mappa successiva disattivata, un worker shader, trasferimento delle immagini con proprietario unico invece della copia. Non elimina armi attive né batch donor. Una cache minore può rallentare il caricamento successivo. Per A/B prova `IW4L_FPV_RETAIN_MIB=64`, `IW4L_SHADER_WORKERS=4` oppure `IW4L_MOVE_IMAGES=0`, cambiando un solo valore alla volta. FPV: 0–1024 MiB; worker: 1–64, limitati dal pool esistente. Ammessi anche `IW4L_IMAGE_DECODE_BUDGET_MIB` e `IW4L_CACHE_BUDGET_MIB` (0–4096), `IW4L_SOUND` (`on`/`off` o `1`/`0`).
+- **Report:** invia `iw4l-boot.log` e `iw4l-memory-settings.txt`. Anche `summary.json`, quando generato, registra impostazioni e memoria. Footprint e heap malloc sono live; traffico per categoria e contatori di espansione texture sono cumulativi, non memoria GPU live. Non sommare fasi sovrapposte o cache e asset attivi. **Il nuovo candidato non è stato provato su iPhone: non dichiara risolto il crash delle mappe.**
 
 ## 🛠️ Compilarlo da solo
 

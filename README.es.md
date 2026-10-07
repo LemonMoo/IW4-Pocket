@@ -59,7 +59,14 @@ No hace falta saber programar. Lleva unos 15 minutos más la copia de archivos.
 - **Mando no detectado**: empárejalo primero en Bluetooth y reabre la app
 - **La app se cierra en un mapa**: es el problema de memoria conocido. Envía el registro
 - **Para limitar texturas**: añade un archivo de texto `iw4l-texture-cap.txt` con solo un número, por ejemplo `256`, y reinicia la app por completo
-- **Avanzado:** un archivo de texto `iw4l-env.txt` con líneas `IW4L_NOMBRE=valor` ajusta los interruptores del motor sin recompilar. Los nombres deben empezar por `IW4L_`
+- **Controles de memoria (candidato 0.2.1):** crea `iw4l-env.txt` en la carpeta de la app y ciérrala por completo antes de reabrirla. Solo se aceptan ajustes validados; nombres desconocidos y valores inválidos se ignoran.
+  ```text
+  IW4L_FPV_RETAIN_MIB=0
+  IW4L_SHADER_WORKERS=1
+  IW4L_MOVE_IMAGES=1
+  ```
+  Son los valores iOS predeterminados: sin caché opcional de payloads FPV para el siguiente mapa, un worker de shaders, transferencia de imágenes con propietario único en vez de copia. No elimina armas activas ni lotes donor. Una caché menor puede ralentizar la siguiente carga. Para A/B prueba `IW4L_FPV_RETAIN_MIB=64`, `IW4L_SHADER_WORKERS=4` o `IW4L_MOVE_IMAGES=0`, cambiando solo uno. FPV: 0–1024 MiB; workers: 1–64, limitados por el pool existente. También se permiten `IW4L_IMAGE_DECODE_BUDGET_MIB` y `IW4L_CACHE_BUDGET_MIB` (0–4096), `IW4L_SOUND` (`on`/`off` o `1`/`0`).
+- **Informes:** envía `iw4l-boot.log` e `iw4l-memory-settings.txt`. `summary.json`, cuando se genera, también registra ajustes y memoria. Footprint y heap malloc son actuales; el tráfico por categoría y la expansión de texturas son acumulativos, no memoria GPU actual. No sumes fases superpuestas ni caché y assets activos. **El nuevo candidato no se ha probado en iPhone; no se afirma que el cierre al cargar mapas esté resuelto.**
 
 ## 🛠️ Compilarlo tú mismo
 

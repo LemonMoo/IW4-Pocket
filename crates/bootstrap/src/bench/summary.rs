@@ -37,6 +37,21 @@ fn build(facts: &RuntimeFacts) -> Value {
             "live": phase(Phase::Live),
         },
         "audio": audio(),
+        "memory": {
+            "scope": "process snapshot; ownership gauges overlap; phase deltas overlap and must not be summed",
+            "footprint_bytes": diag::ios_env::footprint_bytes(),
+            "available_bytes": diag::ios_env::available_bytes(),
+            "malloc_in_use_bytes": diag::ios_env::heap_in_use_bytes(),
+            "fpv_retained_live_bytes": diag::memtrack::FPV_RETAINED_BYTES.load(std::sync::atomic::Ordering::Relaxed),
+            "image_moved_cumulative_bytes": diag::memtrack::IMAGE_MOVED_BYTES.load(std::sync::atomic::Ordering::Relaxed),
+            "category_traffic_not_live": diag::memtrack::report(),
+            "settings": {
+                "fpv_retain_budget_bytes": diag::memory_settings::get().fpv_retain_bytes,
+                "shader_workers_requested": diag::memory_settings::get().shader_workers,
+                "shader_workers_effective": diag::memory_settings::get().effective_shader_workers(assets::load_workers()),
+                "move_images": diag::memory_settings::get().move_images,
+            },
+        },
         "recorder": {
             "percentile_relative_error": perf::stats::PRECISION,
             "unmatched_end": anomalies.unmatched_end,

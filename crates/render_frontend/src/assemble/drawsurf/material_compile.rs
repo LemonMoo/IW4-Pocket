@@ -100,8 +100,11 @@ fn compile_jobs_parallel(
         unique[index].1 += 1;
         indices.push(index);
     }
-    let nthreads = assets::load_workers().clamp(1, unique.len());
-    let chunk_len = unique.len().div_ceil(nthreads * 16);
+    let nthreads = diag::memory_settings::get()
+        .effective_shader_workers(assets::load_workers()).min(unique.len());
+    // At most nthreads tasks: smaller chunks alone do NOT limit concurrency
+    // on the shared load pool. Preserve spawn/result order for indices below.
+    let chunk_len = unique.len().div_ceil(nthreads);
 
     let outcomes: Vec<_> = assets::load_pool()
         .scope_with_executor(false, None, |scope| {
@@ -469,7 +472,7 @@ impl MaterialProgramCompile {
                 World,
                 "world spawn compile pool: jobs={} workers={}",
                 self.total,
-                assets::load_workers()
+                diag::memory_settings::get().effective_shader_workers(assets::load_workers())
             );
             if paced {
                 let task = AsyncComputeTaskPool::get_or_init(TaskPool::default).spawn(async move {

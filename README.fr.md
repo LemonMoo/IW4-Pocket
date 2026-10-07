@@ -59,7 +59,14 @@ Vous avez essayé ? [Ouvrez une issue](https://github.com/MarkusSela/IW4-Pocket/
 - **Manette non détectée** : associez-la d'abord en Bluetooth, puis rouvrez l'app
 - **L'app se ferme sur une carte** : c'est le problème de mémoire connu. Envoyez le journal
 - **Pour limiter les textures** : ajoutez un fichier texte `iw4l-texture-cap.txt` contenant uniquement un nombre, par exemple `256`, puis redémarrez complètement l'app
-- **Avancé :** un fichier texte `iw4l-env.txt` avec des lignes `IW4L_NOM=valeur` règle les interrupteurs du moteur sans recompiler. Les noms doivent commencer par `IW4L_`
+- **Réglages mémoire (candidat 0.2.1) :** créez `iw4l-env.txt` dans le dossier de l’app, quittez complètement puis relancez. Seuls les réglages validés sont acceptés ; noms inconnus et valeurs invalides sont ignorés.
+  ```text
+  IW4L_FPV_RETAIN_MIB=0
+  IW4L_SHADER_WORKERS=1
+  IW4L_MOVE_IMAGES=1
+  ```
+  Valeurs iOS par défaut : cache optionnel des payloads FPV pour la prochaine carte désactivé, un worker de shaders, transfert des images à propriétaire unique au lieu de les copier. Aucune arme active ni aucun lot donor n’est supprimé. Un cache réduit peut ralentir la prochaine charge. Pour A/B, essayez `IW4L_FPV_RETAIN_MIB=64`, `IW4L_SHADER_WORKERS=4` ou `IW4L_MOVE_IMAGES=0`, un seul changement à la fois. FPV : 0–1024 MiB ; workers : 1–64, limités par le pool existant. Également autorisés : `IW4L_IMAGE_DECODE_BUDGET_MIB` et `IW4L_CACHE_BUDGET_MIB` (0–4096), `IW4L_SOUND` (`on`/`off` ou `1`/`0`).
+- **Rapports :** envoyez `iw4l-boot.log` et `iw4l-memory-settings.txt`. `summary.json`, lorsqu’il est généré, enregistre aussi les réglages et la mémoire. Footprint et heap malloc sont actuels ; trafic par catégorie et expansion des textures sont cumulatifs, pas la mémoire GPU actuelle. Ne pas additionner les phases qui se chevauchent ni le cache aux assets actifs. **Ce nouveau candidat n’a pas été testé sur iPhone ; le crash des cartes n’est pas déclaré résolu.**
 
 ## 🛠️ Le compiler soi-même
 

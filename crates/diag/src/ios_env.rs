@@ -178,7 +178,7 @@ pub fn device_report(app_version: &str) -> String {
 }
 
 /// Apply `Documents/iw4l-env.txt`: one `NAME=value` per line, `#` starts a comment.
-/// Only names starting with `IW4L_` are accepted. Returns the lines applied (for the log).
+/// Only validated, allowlisted tuning controls are accepted. Returns diagnostics.
 /// Call before any thread is spawned.
 pub fn apply_env_file(path: &std::path::Path) -> Vec<String> {
     let Ok(text) = std::fs::read_to_string(path) else {
@@ -191,12 +191,12 @@ pub fn apply_env_file(path: &std::path::Path) -> Vec<String> {
             continue;
         }
         let Some((name, value)) = line.split_once('=') else {
-            applied.push(format!("ignored (no '='): {line}"));
+            applied.push("ignored malformed setting (expected NAME=value)".into());
             continue;
         };
         let (name, value) = (name.trim(), value.trim());
-        if !name.starts_with("IW4L_") || name.contains(char::is_whitespace) {
-            applied.push(format!("ignored (name must start with IW4L_): {name}"));
+        if !crate::memory_settings::valid_file_setting(name, value) {
+            applied.push("ignored unknown or invalid tuning setting".into());
             continue;
         }
         // SAFETY: documented precondition: called at startup before other threads exist.

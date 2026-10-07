@@ -8,8 +8,59 @@ use crate::assemble::drawsurf::RuntimeLightmapHandles;
 use super::world::WorldScene;
 
 pub(crate) const IMAGE_BYTES_PER_OVERLAY_FRAME: u64 = 32 * 1024 * 1024;
+
+#[cfg(test)]
+mod memory_tests {
+    use super::*;
+
+    fn image() -> Image {
+        let mut image = Image::default();
+        image.data = Some(vec![1, 2, 3, 4]);
+        image
+    }
+
+    #[test]
+    fn unique_image_moves_buffer() {
+        let source = Arc::new(image());
+        let ptr = source.data.as_ref().unwrap().as_ptr();
+        let out = into_bevy_image(source, true);
+        assert_eq!(ptr, out.data.as_ref().unwrap().as_ptr());
+    }
+
+    #[test]
+    fn shared_image_and_ab_disabled_copy_without_mutating_source() {
+        let source = Arc::new(image());
+        let out = into_bevy_image(Arc::clone(&source), true);
+        assert_ne!(source.data.as_ref().unwrap().as_ptr(), out.data.as_ref().unwrap().as_ptr());
+        assert_eq!(source.data, out.data);
+        let copied = into_bevy_image(Arc::clone(&source), false);
+        assert_eq!(copied.data, source.data);
+        assert_eq!(Arc::strong_count(&source), 1);
+    }
+}
 pub(crate) const MAX_IMAGE_BYTES_PER_SLICE: u64 = 128 * 1024 * 1024;
 pub(crate) const IMAGES_PER_OVERLAY_FRAME: u32 = 16;
+
+/// Transfer unique ownership to Bevy; shared images still require a copy.
+/// Never mutate another holder's Image or remove CPU data from shared assets.
+fn into_bevy_image(image: Arc<Image>, allow_move: bool) -> Image {
+    let bytes = image_bytes(&image);
+    if allow_move {
+        match Arc::try_unwrap(image) {
+            Ok(image) => {
+                diag::memtrack::IMAGE_MOVED_BYTES.fetch_add(bytes, std::sync::atomic::Ordering::Relaxed);
+                image
+            }
+            Err(image) => {
+                diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
+                image.as_ref().clone()
+            }
+        }
+    } else {
+        diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
+        image.as_ref().clone()
+    }
+}
 
 pub(crate) fn overlay_count_byte_capped(
     count: u32,
@@ -477,9 +528,8 @@ impl WorldImageUpload {
                 // and lets its own copy go: the two are the same texels under
                 // the same sampler, and a second `add` is a second texture.
                 let Some(variant) = variant else {
-                    diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
                     diag::memtrack::add(diag::memtrack::Cat::ImageToGpu, bytes);
-                    return images.add((*image).clone());
+                    return images.add(into_bevy_image(image, diag::memory_settings::get().move_images));
                 };
                 if let Some(handle) = self.exact_by_variant.get(&variant) {
                     if common_owned && self.common_profile_id != 0 {
@@ -504,9 +554,8 @@ impl WorldImageUpload {
                     self.exact_by_variant.insert(variant, handle.clone());
                     return handle;
                 }
-                diag::memtrack::add(diag::memtrack::Cat::ImageDupCopy, bytes);
                 diag::memtrack::add(diag::memtrack::Cat::ImageToGpu, bytes);
-                let handle = images.add((*image).clone());
+                let handle = images.add(into_bevy_image(image, diag::memory_settings::get().move_images));
                 if common_owned && self.common_profile_id != 0 {
                     common.by_variant.insert(variant, handle.clone());
                 }

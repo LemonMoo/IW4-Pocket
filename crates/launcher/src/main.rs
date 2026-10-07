@@ -72,11 +72,12 @@ fn spawn_memory_logger() {
                 let available_mb = diag::ios_env::available_bytes().unwrap_or(0) / (1024 * 1024);
                 let (heap_used, heap_reserved) = diag::ios_env::heap_bytes().unwrap_or((0, 0));
                 let (heap_used, heap_reserved) = (heap_used / (1024 * 1024), heap_reserved / (1024 * 1024));
-                let outside = footprint.saturating_sub(heap_reserved);
+                let fpv_retained = diag::memtrack::FPV_RETAINED_BYTES.load(std::sync::atomic::Ordering::Relaxed) / (1024 * 1024);
+                let moved = diag::memtrack::IMAGE_MOVED_BYTES.load(std::sync::atomic::Ordering::Relaxed) / (1024 * 1024);
                 let tex_mb =
                     diag::IOS_TEXTURE_BYTES.load(std::sync::atomic::Ordering::Relaxed) / (1024 * 1024);
                 diag::boot_crumb(&format!(
-                    "mem: footprint {footprint} MB | iOS still allows {available_mb} MB | heap in use {heap_used} MB, reserved {heap_reserved} MB, outside heap ~{outside} MB | textures sent {tex_mb} MB | {}",
+                    "mem: footprint {footprint} MiB | iOS still allows {available_mb} MiB | heap live {heap_used} MiB, reserved {heap_reserved} MiB | optional FPV retained live {fpv_retained} MiB (overlaps active assets) | textures expanded cumulative {tex_mb} MiB | Bevy image moved cumulative {moved} MiB | {}",
                     diag::memtrack::snapshot_line()
                 ));
                 last_mb = footprint;
@@ -122,6 +123,12 @@ fn main() {
         diag::boot_crumb(&diag::ios_env::device_report(env!("CARGO_PKG_VERSION")));
         for line in diag::ios_env::apply_env_file(&docs.join("iw4l-env.txt")) {
             diag::boot_crumb(&format!("iw4l-env.txt: {line}"));
+        }
+        let settings = diag::memory_settings::get().report();
+        diag::boot_crumb(&settings);
+        // Persist effective controls even if jetsam kills us before summary.json.
+        if let Err(error) = std::fs::write(docs.join("iw4l-memory-settings.txt"), &settings) {
+            diag::boot_crumb(&format!("memory settings report write failed: {error}"));
         }
         install_signal_logging();
         spawn_memory_logger();

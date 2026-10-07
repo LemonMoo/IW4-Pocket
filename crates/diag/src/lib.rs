@@ -2,6 +2,7 @@ mod alloc_count;
 pub mod exit;
 pub mod gap;
 pub mod memtrack;
+pub mod memory_settings;
 pub mod ios_env;
 pub mod wgsl_dump;
 

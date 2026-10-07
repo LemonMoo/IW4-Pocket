@@ -59,7 +59,14 @@ Tried it? Please [open an issue](https://github.com/MarkusSela/IW4-Pocket/issues
 - **Controller not detected**: pair it in Bluetooth first, then reopen the app
 - **App closes on a map**: that is the known memory issue. Send the log
 - **To limit texture size**: add a text file `iw4l-texture-cap.txt` containing only a number such as `256`, then fully restart the app
-- **Advanced:** a text file `iw4l-env.txt` with lines like `IW4L_NAME=value` sets the engine's own switches without a rebuild. Names must start with `IW4L_`
+- **Memory controls (0.2.1 candidate):** create `iw4l-env.txt` in the app folder, then fully quit and reopen. Only validated tuning settings are accepted; unknown names and invalid values are ignored.
+  ```text
+  IW4L_FPV_RETAIN_MIB=0
+  IW4L_SHADER_WORKERS=1
+  IW4L_MOVE_IMAGES=1
+  ```
+  These are the iOS defaults: disable the optional next-map FPV payload cache, compile with one shader worker, transfer uniquely owned images instead of copying them. Active weapons and donor batches are not removed. A smaller cache may make a later map load slower. For A/B, try `IW4L_FPV_RETAIN_MIB=64`, `IW4L_SHADER_WORKERS=4` or `IW4L_MOVE_IMAGES=0`, changing only one at a time. FPV accepts 0–1024 MiB; shader workers accept 1–64 but are capped by the existing load pool. Also allowed: `IW4L_IMAGE_DECODE_BUDGET_MIB` and `IW4L_CACHE_BUDGET_MIB` (0–4096), `IW4L_SOUND` (`on`/`off` or `1`/`0`).
+- **Reports:** send `iw4l-boot.log` and `iw4l-memory-settings.txt`. `summary.json`, when generated, also records settings and a memory snapshot. Footprint and malloc heap are live; category traffic and texture expansion counters are cumulative, not live GPU memory. Overlapping phases and retention gauges must not be added together. **The new candidate has not been tested on iPhone; it does not claim the map crash is fixed.**
 
 ## 🛠️ Build it yourself
 

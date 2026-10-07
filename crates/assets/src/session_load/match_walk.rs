@@ -523,14 +523,21 @@ pub(super) async fn walk_prepared_match(
     {
         let job = pending.job;
         let (label, batch) = pending.join().await;
-        let kept = common.retain(&batch);
-        report.push(format!(
-            "{label} payloads kept for the next map: +{:.1}MiB (common set holds {} payloads, {:.1}MiB)",
-            kept as f64 / (1024.0 * 1024.0),
-            common.retained_payloads(),
-            common.retained_bytes() as f64 / (1024.0 * 1024.0),
-        ));
+        let budget = diag::memory_settings::get().fpv_retain_bytes;
+        // Apply first: iOS wrapping changes compressed bytes to RGBA. Retaining
+        // before wrapping would enforce a cap against the wrong byte count.
+        // The copy shares Arcs only; disabled mode adds no extra owner at all.
+        let retention_batch = (budget != 0).then(|| batch.share());
         merge_image_batch(&mut global, label, batch, job, &mut report);
+        let mut retained = common.fpv_retained.lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let kept = retention_batch.as_ref().map_or(0, |batch| retained.keep_bounded(batch, budget));
+        report.push(format!(
+            "{label} optional FPV next-map cache: +{:.1}MiB ({} payloads, {:.1}MiB; budget_bytes={budget}; donor batches excluded)",
+            kept as f64 / (1024.0 * 1024.0),
+            retained.payloads(),
+            retained.bytes() as f64 / (1024.0 * 1024.0),
+        ));
     }
     if let Ok(path) = &zone_ff {
         let stage = progress.begin_scoped(StageId::Images, "merged", None);

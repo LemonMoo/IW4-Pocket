@@ -1,11 +1,15 @@
-//! Per-category memory accounting, for finding where a map's memory goes.
+//! Cumulative allocation/transfer traffic, NOT live category residency.
 //!
 //! Works on every platform (desktop users can run it too). Categories are plain
-//! atomics; the owners of the data call `add`/`sub`. `snapshot_line` renders one
-//! log line. On iOS the launcher writes that line next to the footprint, so a
-//! crash log shows both what iOS counts and what the engine thinks it holds.
+//! Legacy category call sites do not all pair add/sub, so their totals must
+//! never be described as live bytes. FPV_RETAINED_BYTES is a separate ownership
+//! gauge paired with PayloadRetention::Drop; it overlaps active assets and
+//! must not be added to process heap/footprint.
 
 use std::sync::atomic::{AtomicU64, Ordering};
+
+pub static FPV_RETAINED_BYTES: AtomicU64 = AtomicU64::new(0);
+pub static IMAGE_MOVED_BYTES: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cat {
@@ -96,40 +100,33 @@ pub fn live(cat: Cat) -> u64 {
 
 const MB: u64 = 1024 * 1024;
 
-/// One line: live MB per category, with total handed over in brackets when different.
+/// Cumulative traffic. These numbers are not current CPU/GPU allocations.
 pub fn snapshot_line() -> String {
     let mut parts = Vec::with_capacity(COUNT);
     for cat in ALL {
         let s = slot(cat);
-        let live = s.live.load(Ordering::Relaxed) / MB;
         let total = s.total.load(Ordering::Relaxed) / MB;
         let events = s.events.load(Ordering::Relaxed);
         if events == 0 {
             continue;
         }
-        if total > live {
-            parts.push(format!("{} {live}MB (total {total}MB, {events}x)", name(cat)));
-        } else {
-            parts.push(format!("{} {live}MB ({events}x)", name(cat)));
-        }
+        parts.push(format!("{} total {total}MiB ({events}x)", name(cat)));
     }
     if parts.is_empty() {
         "no tracked categories yet".to_owned()
     } else {
-        parts.join(" | ")
+        format!("cumulative traffic (not live): {}", parts.join(" | "))
     }
 }
 
 /// Full multi-line report, for the end of a load or on request.
 pub fn report() -> String {
-    let mut out = String::from("memory by category (live / peak / total handed over / events)\n");
+    let mut out = String::from("category traffic (cumulative; not live CPU/GPU residency)\n");
     for cat in ALL {
         let s = slot(cat);
         out.push_str(&format!(
-            "  {:<11} live {:>6} MB  peak {:>6} MB  total {:>6} MB  events {}\n",
+            "  {:<11} total {:>6} MiB  events {}\n",
             name(cat),
-            s.live.load(Ordering::Relaxed) / MB,
-            s.peak.load(Ordering::Relaxed) / MB,
             s.total.load(Ordering::Relaxed) / MB,
             s.events.load(Ordering::Relaxed),
         ));
