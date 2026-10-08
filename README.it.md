@@ -23,7 +23,9 @@ Un port su iOS del motore open source [IW4L](https://github.com/vladtrc/iw4L). *
 
 - ✅ Gira nativamente su iPhone (Rust + Bevy + Metal)
 - ✅ Arriva al menu principale. Il tocco funziona come clic e il controller PS4 funziona
-- ⚠️ Il caricamento di una mappa di partita (provata: `mp_rust`) va ancora in crash: iOS chiude l'app per troppa memoria. Non ancora risolto. È pubblicato perché si possa provare e aiutare
+- ✅ Su un iPhone 17 Pro Max (6 GB concessi all'app) girano partite complete con i bot: [guarda il video](https://jumpshare.com/s/rFCD5I9ZtWvcN3gcBO8e), di [treuenten](https://github.com/treuenten)
+- ✅ L'app sceglie da sola le impostazioni di memoria in base alla memoria che iOS concede al telefono (basso / medio / alto)
+- ⚠️ Su un iPhone 13 Pro Max (circa 3 GB concessi), `mp_rust` ora carica fino agli shader, poi l'app si chiude da sola. In analisi
 
 ## 🙋 Provalo, passo per passo
 
@@ -31,7 +33,7 @@ Non serve saper programmare. Ci vogliono circa 15 minuti più la copia dei file.
 
 1. **Procurati i file del gioco.** Serve la tua copia di *Modern Warfare 2 (2009)* per **PC** (versione Steam). La cartella deve contenere una sottocartella chiamata `zone`. Questo progetto non fornisce né linka file del gioco
 2. **Installa SideStore** sul tuo iPhone seguendo la [guida ufficiale](https://sidestore.io). È lo strumento che installa app come questa
-3. **Scarica l'app:** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/download/v0.2.0/IW4.Pocket.ipa) (o apri la [pagina della release](https://github.com/MarkusSela/IW4-Pocket/releases/tag/v0.2.0))
+3. **Scarica l'app:** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/latest/download/IW4.Pocket.ipa) (o apri la [pagina della release](https://github.com/MarkusSela/IW4-Pocket/releases/latest))
 4. **Installala con SideStore** (tocca **+**, scegli il file). Se hai già una versione precedente, installa **sopra**: disinstallare cancella i file di gioco
 5. **Apri l'app una volta**, poi chiudila. Così crea la sua cartella
 6. **Copia la cartella di MW2** nell'app File: *Su iPhone > IW4 Pocket > Games*. Va bene qualsiasi nome, purché contenga `zone`
@@ -39,7 +41,7 @@ Non serve saper programmare. Ci vogliono circa 15 minuti più la copia dei file.
 
 ## 📱 Funzionerà sul mio dispositivo?
 
-- ✅ **Testato:** iPhone 13 Pro Max (6 GB), iOS 27. I menu funzionano, le mappe vanno in crash
+- ✅ **Testato:** iPhone 13 Pro Max (6 GB di RAM, ~3 GB concessi), iOS 27: i menu funzionano, il caricamento della mappa arriva fino agli shader. iPhone 17 Pro Max (6 GB concessi): partite complete con i bot, segnalate da treuenten
 - ❓ **Tutto il resto non è verificato.** Tecnicamente dovrebbe girare su qualsiasi iPhone o iPad con Metal; l'app dichiara iOS 15 come minimo, ma non l'ho mai provata lì
 - 🧠 **Il limite è la memoria.** Sul telefono testato iOS concede all'app circa 3 GB. I dispositivi con meno RAM falliranno prima; i più interessanti da provare sono iPhone da 8 GB+ e iPad con chip M
 - 🎮 **Per giocare serve un controller.** Il tocco funziona solo nei menu

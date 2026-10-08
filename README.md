@@ -23,7 +23,9 @@ A port of the open-source [IW4L](https://github.com/vladtrc/iw4L) engine to iOS.
 
 - ✅ Runs natively on iPhone (Rust + Bevy + Metal)
 - ✅ Reaches the main menu. Touch works as a click and a PS4 controller works
-- ⚠️ Loading a match map (tested: `mp_rust`) still crashes: iOS closes the app for using too much memory. Not solved yet. It is released so people can test it and help
+- ✅ On an iPhone 17 Pro Max (6 GB granted to the app) full matches with bots run: [watch the clip](https://jumpshare.com/s/rFCD5I9ZtWvcN3gcBO8e), by [treuenten](https://github.com/treuenten)
+- ✅ The app picks its memory settings by itself from the memory iOS grants the phone (low / mid / high)
+- ⚠️ On an iPhone 13 Pro Max (about 3 GB granted), `mp_rust` now loads up to the shaders, then the app quits by itself. Still being investigated
 
 ## 🙋 Try it, step by step
 
@@ -31,7 +33,7 @@ No coding needed. It takes about 15 minutes plus the file copy.
 
 1. **Get the game files.** You need your own copy of *Modern Warfare 2 (2009)* for **PC** (the Steam version). The folder must contain a subfolder named `zone`. This project does not provide or link to game files
 2. **Install SideStore** on your iPhone by following the [official guide](https://sidestore.io). It is the tool that installs apps like this one
-3. **Download the app:** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/download/v0.2.0/IW4.Pocket.ipa) (or open the [release page](https://github.com/MarkusSela/IW4-Pocket/releases/tag/v0.2.0))
+3. **Download the app:** [IW4.Pocket.ipa](https://github.com/MarkusSela/IW4-Pocket/releases/latest/download/IW4.Pocket.ipa) (or open the [release page](https://github.com/MarkusSela/IW4-Pocket/releases/latest))
 4. **Install it with SideStore** (tap **+**, pick the file). If you already have an older version, install **over** it: uninstalling deletes your game files
 5. **Open the app once**, then close it. This creates its folder
 6. **Copy your MW2 folder** into the Files app: *On My iPhone > IW4 Pocket > Games*. Any folder name works, as long as it contains `zone`
@@ -39,7 +41,7 @@ No coding needed. It takes about 15 minutes plus the file copy.
 
 ## 📱 Will it work on my device?
 
-- ✅ **Tested:** iPhone 13 Pro Max (6 GB), iOS 27. Menus work, match maps crash
+- ✅ **Tested:** iPhone 13 Pro Max (6 GB RAM, ~3 GB granted), iOS 27: menus work, match loading gets as far as the shaders. iPhone 17 Pro Max (6 GB granted): full matches with bots, reported by treuenten
 - ❓ **Everything else is unverified.** Technically it should run on any iPhone or iPad with Metal; the app declares iOS 15 as its minimum, but I never tried it there
 - 🧠 **Memory is the limit.** On the tested phone iOS allows the app about 3 GB. Devices with less RAM will likely fail sooner; 8 GB+ iPhones and M-series iPads are the most interesting to test
 - 🎮 **A controller is needed to play.** Touch only works in the menus
