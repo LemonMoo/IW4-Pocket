@@ -1162,7 +1162,9 @@ impl AssetSink for ZoneWalkSink {
         ty: AssetType,
         slot: Ptr,
     ) -> fastfile_iw4::Result<()> {
+        let heap_mark = diag::asset_heap::begin();
         let loaded = load_asset_at_observed(s, ty, slot, self)?;
+        diag::asset_heap::end(ty.name(), heap_mark);
         if ty == AssetType::LightDef {
             self.light_def_table += 1;
             if loaded {
@@ -1393,7 +1395,9 @@ impl AssetSink for CommonWalkSink {
         ty: AssetType,
         slot: Ptr,
     ) -> fastfile_iw4::Result<()> {
+        let heap_mark = diag::asset_heap::begin();
         let loaded = load_asset_at_observed(s, ty, slot, self)?;
+        diag::asset_heap::end(ty.name(), heap_mark);
         if ty == AssetType::LightDef {
             self.light_def_table += 1;
             if loaded {

@@ -46,6 +46,7 @@ pub fn add_runtime_plugins_with_role(app: &mut App, role: RuntimeRole) {
         .add_plugins(ReplayPlugin)
         .add_plugins(RenderPlugin)
         .add_plugins(SessionPlugin);
+    app.insert_resource(bevy::render::error_handler::RenderErrorHandler(log_then_quit));
     // Render setup can finish after Startup, so watch for the resource.
     app.add_systems(
         First,
@@ -96,6 +97,32 @@ pub fn assemble_listen_app() -> App {
     }));
     add_runtime_plugins(&mut app);
     app
+}
+
+/// Bevy's default quits the app on any render error but only logs through tracing, which
+/// never reaches `iw4l-boot.log`: a graphics failure looked like a silent `code=1` exit.
+/// Same policy as the default (quit), plus the error type and text in the boot log.
+fn log_then_quit(
+    error: &bevy::render::error_handler::RenderError,
+    main_world: &mut World,
+    _render_world: &mut World,
+) -> bevy::render::error_handler::RenderErrorPolicy {
+    // StopRendering keeps the error state, so Bevy calls this every frame until the app
+    // exits: log it once.
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        let text = format!(
+            "RENDER ERROR {:?}: {} | footprint {} MiB, iOS still allows {} MiB",
+            error.ty,
+            error.description,
+            diag::ios_env::footprint_bytes().unwrap_or(0) / (1024 * 1024),
+            diag::ios_env::available_bytes().unwrap_or(0) / (1024 * 1024),
+        );
+        diag::boot_crumb(&text);
+        diag::flush();
+    }
+    main_world.write_message(AppExit::error());
+    bevy::render::error_handler::RenderErrorPolicy::StopRendering
 }
 
 /// Tells the texture decoder whether the GPU samples BC directly, so iOS can

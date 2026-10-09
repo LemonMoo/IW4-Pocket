@@ -64,6 +64,10 @@ fn spawn_memory_logger() {
             }
             if last_classes.elapsed() >= std::time::Duration::from_secs(5) {
                 diag::boot_crumb(&diag::size_class_report());
+                let per_kind = diag::asset_heap::report();
+                if !per_kind.is_empty() {
+                    diag::boot_crumb(&per_kind);
+                }
                 last_classes = std::time::Instant::now();
             }
             let footprint = diag::ios_env::footprint_bytes().unwrap_or(0) / (1024 * 1024);

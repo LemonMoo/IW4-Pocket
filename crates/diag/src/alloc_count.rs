@@ -58,6 +58,23 @@ pub fn take_last_huge() -> Option<u64> {
     (v != 0).then_some(v)
 }
 
+thread_local! {
+    /// This thread's net allocated bytes (allocs minus frees). Plain `Cell`: no atomics,
+    /// no allocation, so it is safe to touch from inside the global allocator.
+    static THREAD_NET: Cell<i64> = const { Cell::new(0) };
+}
+
+#[inline]
+fn thread_net_add(delta: i64) {
+    let _ = THREAD_NET.try_with(|net| net.set(net.get().wrapping_add(delta)));
+}
+
+/// Net bytes this thread has allocated and not freed itself. Memory freed by another
+/// thread lowers that thread's figure, not this one's.
+pub fn thread_net_bytes() -> i64 {
+    THREAD_NET.try_with(Cell::get).unwrap_or(0)
+}
+
 const FALLBACK_SLOT: usize = 0;
 const MAX_THREADS: usize = 256;
 
@@ -173,23 +190,27 @@ pub struct ProcessCountingAllocator;
 
 unsafe impl GlobalAlloc for ProcessCountingAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        thread_net_add(layout.size() as i64);
         record_size(layout.size() as u64);
         record_alloc(layout.size() as u64);
         unsafe { BACKING.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        thread_net_add(layout.size() as i64);
         record_size(layout.size() as u64);
         record_alloc(layout.size() as u64);
         unsafe { BACKING.alloc_zeroed(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        thread_net_add(-(layout.size() as i64));
         record_dealloc(layout.size() as u64);
         unsafe { BACKING.dealloc(ptr, layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        thread_net_add(new_size as i64 - layout.size() as i64);
         record_size(new_size as u64);
         record_alloc(new_size as u64);
         record_dealloc(layout.size() as u64);
